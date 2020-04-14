@@ -275,13 +275,13 @@ def restore_by_month(year,month,restore_to_origin_table=False,preserve_id=True):
     """
     d = date(year,month,1)
     archive_group = get_archive_group(d)
-    logger.debug("Begin to import archived loggedpoint, archive_group={}".format(archive_group))
+    logger.info("Begin to import archived loggedpoint, archive_group={}".format(archive_group))
     blob_resource = get_blob_resource()
     work_folder = tempfile.mkdtemp(prefix="restore_loggedpoint")
     try:
         metadata,filename = blob_resource.download_group(archive_group,folder=work_folder,overwrite=True)
         imported_table = _restore_data(os.path.join(work_folder,"{}.vrt".format(archive_group)),restore_to_origin_table=restore_to_origin_table,preserve_id=preserve_id)
-        logger.debug("End to import archived loggedpoint, archive_group={},imported_table".format(archive_group,imported_table))
+        logger.info("End to import archived loggedpoint, archive_group={},imported_table".format(archive_group,imported_table))
     finally:
         utils.remove_folder(work_folder)
         pass
@@ -296,13 +296,13 @@ def restore_by_date(d,restore_to_origin_table=False,preserve_id=True):
     archive_group = get_archive_group(d)
     archive_id= get_archive_id(d)
     archive_filename = "{}.gpkg".format(archive_id)
-    logger.debug("Begin to import archived loggedpoint, archive_group={},archive_id={}".format(archive_group,archive_id))
+    logger.info("Begin to import archived loggedpoint, archive_group={},archive_id={}".format(archive_group,archive_id))
     blob_resource = get_blob_resource()
     work_folder = tempfile.mkdtemp(prefix="restore_loggedpoint")
     try:
         metadata,filename = blob_resource.download(archive_id,resource_group=archive_group,filename=os.path.join(work_folder,archive_filename))
         imported_table =_restore_data(filename,restore_to_origin_table=restore_to_origin_table,preserve_id=preserve_id)
-        logger.debug("End to import archived loggedpoint, archive_group={},archive_id={},imported_table={}".format(archive_group,archive_id,imported_table))
+        logger.info("End to import archived loggedpoint, archive_group={},archive_id={},imported_table={}".format(archive_group,archive_id,imported_table))
     finally:
         utils.remove_folder(work_folder)
         pass
@@ -322,11 +322,11 @@ def _restore_data(filename,restore_to_origin_table=False,preserve_id=True):
         sql = missing_device_sql.format(imported_table)
         rows = db.update(sql,autocommit=True)
         if rows :
-            logger.debug("Created {2} missing devices from imported table({0})".format(imported_table,rows))
+            logger.info("Created {2} missing devices from imported table({0})".format(imported_table,rows))
         else:
-            logger.debug("All devices referenced from imported table({0}) exist".format(imported_table,rows))
+            logger.info("All devices referenced from imported table({0}) exist".format(imported_table,rows))
 
-        logger.debug("Restore the logged points from table({0}) to table(tracking_loggedpoint)".format(imported_table))
+        logger.info("Restore the logged points from table({0}) to table(tracking_loggedpoint)".format(imported_table))
         if preserve_id:
             sql = restore_with_id_sql
         else:
