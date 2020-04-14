@@ -1,0 +1,7 @@
+requests==2.22.0
+python-dotenv==0.10.3
+pytz==2019.3
+
+psycopg2==2.8.4
+
+azure-storage-blob

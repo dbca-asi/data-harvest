@@ -1,0 +1,15 @@
+venv/
+.env
+media/
+logs/
+test/
+*.py~
+*.pyc
+*.log
+*.swp
+# Database/fixture dumps
+*.pgdump
+*.dump
+*.db
+*.sqlite3
+.coverage
