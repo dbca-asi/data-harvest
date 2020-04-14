@@ -57,7 +57,7 @@ def parse_db_connection_string(connection_string):
     """
     m = db_connection_string_re.match(connection_string)
     if not m:
-        raise Exceptino("Invalid database configuration({})".format(connection_string))
+        raise Exception("Invalid database configuration({})".format(connection_string))
 
     database_config = {
         "database":m.group("database"),
