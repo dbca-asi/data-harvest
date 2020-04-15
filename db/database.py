@@ -161,7 +161,7 @@ class PostgreSQL(object):
             "-overwrite" if overwrite else ""
         )
     
-        logger.debug("Import spatial data to database. cmd='{}'".format(cmd))
+        logger.debug("Import spatial data to database. ")
         subprocess.check_call(cmd,shell=True)
         count = self.count(table)
         if count == metadata["features"]:
@@ -203,7 +203,7 @@ class PostgreSQL(object):
             sql
 
         )
-        logger.debug("Export spatial data from database. cmd='{}'".format(cmd))
+        logger.debug("Export spatial data from database. ")
         subprocess.check_call(cmd,shell=True)
 
         layer_metadata = gdal.get_layers(filename)[0]
