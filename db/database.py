@@ -148,7 +148,7 @@ class PostgreSQL(object):
 
         folder,filename = os.path.split(spatialfile)
 
-        cmd = """cd {0} && ogr2ogr {9} -preserve_fid -f "PostgreSQL" PG:"host='{3}' {4} dbname='{5}' {6} {7}" {1} -nln {8}  {2}""".format(
+        cmd = """cd {0} && ogr2ogr {9} -f "PostgreSQL" PG:"host='{3}' {4} dbname='{5}' {6} {7}" {1} -nln {8}  {2}""".format(
             folder,
             filename,
             layer,
@@ -192,7 +192,7 @@ class PostgreSQL(object):
             with tempfile.NamedTemporaryFile(prefix=self._params["dbname"],suffix=file_ext,delete=False) as f:
                 filename = f.name
 
-        cmd = """ogr2ogr -overwrite -preserve_fid {0} PG:"host='{2}' {3} dbname='{4}' {5} {6}" {1} -sql "{7}" """.format(
+        cmd = """ogr2ogr -overwrite  {0} PG:"host='{2}' {3} dbname='{4}' {5} {6}" {1} -sql "{7}" """.format(
             filename,
             "-nln {}".format(layer) if layer else "",
             self._params["host"],
