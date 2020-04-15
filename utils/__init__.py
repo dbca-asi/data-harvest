@@ -50,7 +50,7 @@ class JSONDecoder(json.JSONDecoder):
         else:
             return obj
 
-db_connection_string_re = re.compile('^\s*(?P<database>(postgis)|(postgres))://(?P<user>[^@:]+)(:(?P<password>[0-9a-zA-Z]+))?@(?P<host>[^:\/\s]+)(:(?P<port>[1-9][0-9]*))?/(?P<dbname>[0-9a-zA-Z\-_]+)?\s*$')
+db_connection_string_re = re.compile('^\s*(?P<database>(postgis)|(postgres))://(?P<user>[a-zA-Z0-9@\-_\.]+)(:(?P<password>[0-9a-zA-Z]+))?@(?P<host>[a-zA-Z0-9\-\_\.@]+)(:(?P<port>[1-9][0-9]*))?/(?P<dbname>[0-9a-zA-Z\-_]+)?\s*$')
 def parse_db_connection_string(connection_string):
     """
     postgis://rockyc@localhost/bfrs
