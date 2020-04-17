@@ -9,7 +9,7 @@ today = now.date()
 year = now.year
 
 parser = argparse.ArgumentParser(prog="restore",description='Archive the logged points')
-parser.add_argument('year', type=int, action='store',choices=[y for y in range(year - 10,year + 1,1)],help='The year of the logged points')
+parser.add_argument('year', type=int, action='store',choices=[y for y in range(year - 30,year + 1,1)],help='The year of the logged points')
 parser.add_argument('month', type=int, action='store',choices=[m for m in range(1,13)],help='The month of the logged points')
 parser.add_argument('day', type=int, action='store',choices=[d for d in range(1,32)],nargs="?",help='The day of the logged points')
 parser.add_argument('--check',  action='store_true',help='Download the archived files to check whether it was archived successfully or not')
