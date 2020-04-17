@@ -56,7 +56,7 @@ get_vrt_layername= lambda archive_group:"loggedpoint{}".format(archive_group)
 
 index_metaname = "loggedpoint_index"
 
-get_metaname = lambda archive_group:"loggedpoint{}".format(archive_group)
+get_metaname = lambda archive_group:"loggedpoint{}".format(archive_group.split("-")[0])
 _blob_resource = None
 def get_blob_resource():
     """
