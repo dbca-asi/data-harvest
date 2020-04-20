@@ -26,13 +26,15 @@ class AzureBlob(object):
 
     def delete(self):
         try:
-            self._blob_client.delete_blob()
+            self._blob_client.delete_blob(delete_snapshots="include")
         except:
             logger.error("Failed to delete the resource from blob storage.{}".format(self._blob_path,traceback.format_exc()))
 
 
     def download(self,filename=None,overwrite=False):
         """
+        Download the blob resource to a local file
+        overwrite: throw exception if the local file already exist and overwrite is True; 
         Return the downloaded local resource file
         """
         if filename:
@@ -43,12 +45,13 @@ class AzureBlob(object):
                 elif not overwrite:
                     #already exist and can't overwrite
                     raise Exception("The path({}) already exists".format(filename))
+
+            with open(filename,'wb') as f:
+                blob_data = self.get_blob_client(metadata["resource_path"]).download_blob().readinto(f)
         else:
             with tempfile.NamedTemporaryFile(prefix=self.resourcename) as f:
+                blob_data = self.get_blob_client(metadata["resource_path"]).download_blob().readinto(f)
                 filename = f.name
-
-        with open(filename,'wb') as f:
-            blob_data = self.get_blob_client(metadata["resource_path"]).download_blob().readinto(f)
 
         return filename
         
@@ -56,10 +59,11 @@ class AzureBlob(object):
     def update(self,blob_data):
         """
         Update the blob data
+        if blob_data is None, delete the blob resource
         """
         if blob_data is None:
             #delete the blob resource
-            self._blob_client.delete_blob(delete_snapshots="include")
+            self.delete()
         else:
             if not isinstance(blob_data,bytes):
                 #blob_data is not byte array, convert it to json string
@@ -91,7 +95,7 @@ class AzureJsonBlob(AzureBlob):
         """
         blob_data = {} if blob_data is None else blob_data
         if not isinstance(blob_data,bytes):
-            #blob_data is not byte array, convert it to json string
+            #blob_data is not byte array, convert it to json string and encode it to byte array
             blob_data = json.dumps(blob_data,cls=JSONEncoder).encode()
         super().update(blob_data)
 
@@ -137,21 +141,29 @@ class AzureBlobMetadataBase(AzureJsonBlob):
     def update(self,metadata):
         if metadata is None:
             metadata = {}
+        logger.debug("Update the meta file '{}'".format(self._blob_path))
         super().update(metadata)
         if self._cache:
             #cache the result
             self._json = metadata
 
     def delete(self):
+        logger.debug("Delete the meta file '{}'".format(self._blob_path))
         super().delete()
         if self._cache:
             self._json = None
 
 class AzureBlobMetadataIndex(AzureBlobMetadataBase):
+    """
+    The class for index meta file
+    """
     def __init__(self,connection_string,container_name,resource_base_path=None,cache=False,index_metaname="_metadata_index"):
         super().__init__(connection_string,container_name,resource_base_path=resource_base_path,cache=cache,metaname=index_metaname)
 
     def add_metafile(self,metaname,metadata_filepath):
+        """
+        Add a individual meta file to the index meta file
+        """
         index_json = self.json
 
         if index_json is None:
@@ -168,9 +180,11 @@ class AzureBlobMetadataIndex(AzureBlobMetadataBase):
         self.update(index_json)
 
     def remove_metafile(self,metaname):
-        #remove this metadata file from index metadata file
+        """
+        remove this metadata file from index metadata file
+        """
         index_json = self.json
-        if index_json is None:
+        if not index_json :
             return
         else:
             #find the index of the metaname;
@@ -186,15 +200,19 @@ class AzureBlobMetadataIndex(AzureBlobMetadataBase):
                 del index_json[index]
                 #update it
                 if index_json:
+                    #still have some other individual meta files
                     self.update(index_json)
                 else:
-                    #no more metadata files, remove the index metadata file
+                    #no more individual metadata files, remove the index metadata file
                     self.delete()
             else:
                 #not found
                 return
 
 class AzureBlobIndexedMetadata(AzureBlobMetadataIndex):
+    """
+    A class to implement indexed meta file which include index meta file and indiviudal meta files
+    """
     metaclient_class = None
     def __init__(self,connection_string,container_name,f_metaname,resource_base_path=None,cache=False,archive=False,index_metaname="_metadata_index"):
         super().__init__(connection_string,container_name,resource_base_path=resource_base_path,cache=cache,index_metaname=index_metaname)
@@ -206,6 +224,10 @@ class AzureBlobIndexedMetadata(AzureBlobMetadataIndex):
 
     @property
     def metadata_client(self):
+        """
+        Return the individual meta file against the current metaname
+        Return None if current metaname is None
+        """
         if self._metaname:
             if not self._metadata_client or self._metadata_client._metaname != self._metaname:
                 self._meta_client = self.metaclient_class(self._connection_string,self._container_name,resource_base_path=self._resource_base_path,cache=self._cache,metaname=self._metaname,archive=self._archive)
@@ -215,6 +237,18 @@ class AzureBlobIndexedMetadata(AzureBlobMetadataIndex):
 
 
     def resource_metadatas(self,throw_exception=True,**kwargs):
+        """
+        kwargs should be 'resource_file' or the keys in resource_keys
+        if kwargs['resource_file'] is None, navigate the resource's metadata
+        if kwargs['resource_file'] is not None, navigate the pushed resource's metadata
+        throw_exception: if True, throw exception if resource not found; otherwise return empty generator
+        Return a generator to navigate the filtered meta datas
+        
+        """
+        unknown_args = [a for a in kwargs.keys() if a not in self.resource_keys and a not in ("resource_file",)]
+        if unknown_args:
+            raise Exception("Unsupported keywords arguments({})".format(unknown_args))
+
         if self.resource_keys[0] not in kwargs:
             #return all resource metadata
             index_json = self.json
@@ -230,7 +264,7 @@ class AzureBlobIndexedMetadata(AzureBlobMetadataIndex):
 
     def get_resource_metadata(self,*args,resource_file="current"):
         """
-        Return a iterate object to navigate the metadata of all pushed individual resources or specified resource; if not exist, throw exception
+        Return resource's metadata or pushed resource's metadata if resource_file is not None; if not exist, throw exception
         """
         self._metaname = self._f_metaname(args[0])
 
@@ -270,7 +304,7 @@ class AzureBlobResourceMetadataBase(AzureBlobMetadataBase):
     metadata is a json object.
     """
     #The resource keys in metadata used to identify a resource
-    resource_keys =  ["resource_id"]
+    resource_keys =  []
 
     def __init__(self,connection_string,container_name,resource_base_path=None,cache=False,metaname="metadata",archive=False):
         super().__init__(connection_string,container_name,resource_base_path=resource_base_path,cache=cache,metaname=metaname)
@@ -279,6 +313,7 @@ class AzureBlobResourceMetadataBase(AzureBlobMetadataBase):
     def _get_pushed_resource_metadata(self,metadata,resource_file="current"):
         """
         get metadata from resource's metadata against resource_file
+        resource_file:  
         """
         if self._archive and resource_file:
             if metadata.get("current",{}).get("resource_file") and (metadata.get("current",{}).get("resource_file") == resource_file or resource_file == "current"):
@@ -296,8 +331,15 @@ class AzureBlobResourceMetadataBase(AzureBlobMetadataBase):
 
     def resource_metadatas(self,throw_exception=True,**kwargs):
         """
-        Return a iterator object to navigate the metadata of all pushed individual resources or specified resource; if not exist, return a empty list.
+        Return a generator to navigate the metadata of all pushed individual resources or specified resource; if not exist, return a empty generator
+        if kwargs['resource_file'] is None, navigate the resource's metadata
+        if kwargs['resource_file'] is not None, navigate the pushed resource's metadata
+        throw_exception: if True, throw exception if resource not found; otherwise return empty generator
         """
+        unknown_args = [a for a in kwargs.keys() if a not in self.resource_keys and a not in ("resource_file",)]
+        if unknown_args:
+            raise Exception("Unsupported keywords arguments({})".format(unknown_args))
+
         metadata = self.json or {}
         index = 0
         while index < len(self.resource_keys):
@@ -326,7 +368,7 @@ class AzureBlobResourceMetadataBase(AzureBlobMetadataBase):
                             yield self._get_pushed_resource_metadata(m2,resource_file)
                         else:
                             for m3 in m2.values():
-                                if (index + 2) == len(self.resource_keys):
+                                if (index + 3) == len(self.resource_keys):
                                     yield self._get_pushed_resource_metadata(m3,resource_file)
                                 else:
                                     raise Exception("Not implemented")
@@ -334,7 +376,7 @@ class AzureBlobResourceMetadataBase(AzureBlobMetadataBase):
 
     def get_resource_metadata(self,*args,resource_file="current"):
         """
-        Return a iterate object to navigate the metadata of all pushed individual resources or specified resource; if not exist, throw exception
+        Return resource's metadata or pushed resource's metadata if resource_file is not None; if not exist, throw exception
         """
         return next(self.resource_metadatas(resource_file=resource_file,**dict(zip(self.resource_keys,args))))
 
@@ -360,7 +402,8 @@ class AzureBlobResourceMetadataBase(AzureBlobMetadataBase):
         else:
             resource_metadata = p_metadata[args[-1]]
             del p_metadata[args[-1]]
-            
+         
+            #delete the meta file if meta file is empty
             last_index = len(args) - 2
             while last_index >= 0:
                 p_metadata = metadata
@@ -424,91 +467,6 @@ class AzureBlobIndexedGroupResourceMetadata(AzureBlobIndexedMetadata):
     resource_keys = metaclient_class.resource_keys
 
 
-class AzureBlobResourceClient(AzureBlobResourceMetadata):
-    """
-    A client to track the non group resource consuming status of a client
-    """
-    def __init__(self,connection_string,container_name,clientid,resource_base_path=None,cache=False):
-        metadata_filename = ".json".format(clientid)
-        if resource_base_path:
-            client_base_path = "{}/clients".format(resource_base_path)
-        else:
-            client_base_path = "clients"
-        super().__init__(metadata_file,connection_string,container_name,resource_base_path=client_base_path,metadata_filename=metadata_filename,cache=cache)
-        self._metadata_client = AzureBlobResourceMetadata(connection_string,container_name,resource_base_path=resource_base_path,cache=False)
-
-
-    @property
-    def status(self):
-        """
-        Return tuple(True if the latest resource was consumed else False,(latest_resource_id,latest_resource's publish_date),(consumed_resurce_id,consumed_resource's published_date,consumed_date))
-        """
-        client_metadata = self.json
-        resource_metadata = self._metadata_client.json
-        if not client_metadata or not client_metadata.get("resource_id"):
-            #this client doesn't consume the resource before
-            if not resource_metadata or not resource_metadata.get("current",{}).get("resource_id"):
-                #not resource was published
-                return (True,None,None)
-            else:
-                #some resource hase been published
-                return (False,(resource_metadata.get("current",{}).get("resource_id"),resource_metadata.get("current",{}).get("publish_date")),None)
-        elif not resource_metadata or not resource_metadata.get("current",{}).get("resource_id"):
-            #no resource was published
-            return (True,None,(client_metadata.get("resource_id"),client_metadata.get("publish_date"),client_metadata.get("consume_date")))
-        elif client_metadata.get("resource_id") == resource_metadata.get("current",{}).get("resource_id"):
-            #the client has consumed the latest resource
-            return (
-                True,
-                (resource_metadata.get("current",{}).get("resource_id"),resource_metadata.get("current",{}).get("publish_date")),
-                (client_metadata.get("resource_id"),client_metadata.get("publish_date"),client_metadata.get("consume_date"))
-            )
-        else:
-            return (
-                False,
-                (resource_metadata.get("current",{}).get("resource_id"),resource_metadata.get("current",{}).get("publish_date")),
-                (client_metadata.get("resource_id"),client_metadata.get("publish_date"),client_metadata.get("consume_date"))
-            )
-
-    @property
-    def isbehind(self):
-        """
-        Return true if consumed resurce is not the latest resource; otherwise return False
-        """
-        return not self.status[0]
-
-    def consume(self,callback,isjson=True):
-        """
-        Return True if some resource has been consumed; otherwise return False
-        """
-        status = self.status
-        if status[0]:
-            #the latest resource has been consumed
-            return False
-
-        resource_client = AzureBlob(status[1][0],connection_string,container_name)
-        if isjson:
-            callback(resource_client.json)
-        else:
-            res_file = resource_client.download()
-            try:
-                with open(res_file,'rb') as f:
-                    callback(f)
-            finally:
-                #after processing,remove the downloaded local resource file
-                os.remove(res_file)
-        #update the client consume data
-        client_metdata = {
-            "resource_id" : status[1][0],
-            "publish_date" : status[1][1],
-            "consume_date": timezone.now()
-        }
-
-        self.update(client_metadata)
-
-        return True
-
-
 class AzureBlobResourceBase(ResourceStorage):
     """
     A base client to manage a Azure Resourcet
@@ -535,6 +493,8 @@ class AzureBlobResourceBase(ResourceStorage):
     def _get_resource_file(self,resourceid):
         """
         Get a default resource file from resourceid
+        for archived resource, each push will create another blob resource named by resource_file
+        for non-archived resource,each push will create a new blob resource or update the exist resource, so resourceid is the same as resource_file
         """
         if self._archive:
             file_name,file_ext = os.path.splitext(resourceid)
@@ -545,6 +505,7 @@ class AzureBlobResourceBase(ResourceStorage):
     def _get_resource_path(self,metadata):
         """
         Get the resoure path for resource_file
+        resource path is the path in blob storage
         """
         if len(self._metadata_client.resource_keys) > 1:
             return "{0}/{1}/{2}".format(self._resource_data_path,"/".join(metadata[k] for k in self._metadata_client.resource_keys[:-1]),metadata["resource_file"])
@@ -572,8 +533,10 @@ class AzureBlobResourceBase(ResourceStorage):
         delete the resource_group or specified resource 
         return the list of the metadata of deleted resources
         """
-        if "resource_file" in kwargs:
-            raise Exception("Parameter(resource_file) Not Support")
+        unknown_args = [a for a in kwargs.keys() if a not in self._metadata_client.resource_keys and a not in ("throw_exception",)]
+        if unknown_args:
+            raise Exception("Unsupported keywords arguments({})".format(unknown_args))
+
         metadatas = [ m for m in self._metadata_client.resource_metadatas(resource_file=None,**kwargs)]
         for m in metadatas:
             self._delete_resource(m)
@@ -619,6 +582,10 @@ class AzureBlobResourceBase(ResourceStorage):
         """
         Only available for group resource
         """
+        unknown_args = [a for a in kwargs.keys() if a not in self._metadata_client.resource_keys]
+        if unknown_args:
+            raise Exception("Unsupported keywords arguments({})".format(unknown_args))
+
         if folder:
             if os.path.exists(folder):
                 if not os.path.isdir(folder):
@@ -636,7 +603,9 @@ class AzureBlobResourceBase(ResourceStorage):
         else:
             folder = tempfile.mkdtemp(prefix=resource_group)
 
-        kwargs["resource_file"] = "current"
+        if self._archive:
+            kwargs["resource_file"] = "current"
+
         metadatas = [m for m in self._metadata_client.resource_metadatas(throw_exception=True,**kwargs)]
         for metadata in metadatas:
             if metadata.get("resource_file") and metadata.get("resource_path"):
@@ -734,4 +703,91 @@ class AzureBlobIndexedGroupResource(AzureBlobResourceBase):
     def push_resource(self,data,metadata,f_post_push=None,length=None):
         super().push_resource(data,metadata,f_post_push=f_post_push,length=length)
         return self._metadata_client.metadata_client.json
+
+
+
+class AzureBlobResourceClient(AzureBlobResourceMetadata):
+    """
+    A client to track the non group resource consuming status of a client
+    Incompleted and not tested
+    """
+    def __init__(self,connection_string,container_name,clientid,resource_base_path=None,cache=False):
+        metadata_filename = ".json".format(clientid)
+        if resource_base_path:
+            client_base_path = "{}/clients".format(resource_base_path)
+        else:
+            client_base_path = "clients"
+        super().__init__(metadata_file,connection_string,container_name,resource_base_path=client_base_path,metadata_filename=metadata_filename,cache=cache)
+        self._metadata_client = AzureBlobResourceMetadata(connection_string,container_name,resource_base_path=resource_base_path,cache=False)
+
+
+    @property
+    def status(self):
+        """
+        Return tuple(True if the latest resource was consumed else False,(latest_resource_id,latest_resource's publish_date),(consumed_resurce_id,consumed_resource's published_date,consumed_date))
+        """
+        client_metadata = self.json
+        resource_metadata = self._metadata_client.json
+        if not client_metadata or not client_metadata.get("resource_id"):
+            #this client doesn't consume the resource before
+            if not resource_metadata or not resource_metadata.get("current",{}).get("resource_id"):
+                #not resource was published
+                return (True,None,None)
+            else:
+                #some resource hase been published
+                return (False,(resource_metadata.get("current",{}).get("resource_id"),resource_metadata.get("current",{}).get("publish_date")),None)
+        elif not resource_metadata or not resource_metadata.get("current",{}).get("resource_id"):
+            #no resource was published
+            return (True,None,(client_metadata.get("resource_id"),client_metadata.get("publish_date"),client_metadata.get("consume_date")))
+        elif client_metadata.get("resource_id") == resource_metadata.get("current",{}).get("resource_id"):
+            #the client has consumed the latest resource
+            return (
+                True,
+                (resource_metadata.get("current",{}).get("resource_id"),resource_metadata.get("current",{}).get("publish_date")),
+                (client_metadata.get("resource_id"),client_metadata.get("publish_date"),client_metadata.get("consume_date"))
+            )
+        else:
+            return (
+                False,
+                (resource_metadata.get("current",{}).get("resource_id"),resource_metadata.get("current",{}).get("publish_date")),
+                (client_metadata.get("resource_id"),client_metadata.get("publish_date"),client_metadata.get("consume_date"))
+            )
+
+    @property
+    def isbehind(self):
+        """
+        Return true if consumed resurce is not the latest resource; otherwise return False
+        """
+        return not self.status[0]
+
+    def consume(self,callback,isjson=True):
+        """
+        Return True if some resource has been consumed; otherwise return False
+        """
+        status = self.status
+        if status[0]:
+            #the latest resource has been consumed
+            return False
+
+        resource_client = AzureBlob(status[1][0],connection_string,container_name)
+        if isjson:
+            callback(resource_client.json)
+        else:
+            res_file = resource_client.download()
+            try:
+                with open(res_file,'rb') as f:
+                    callback(f)
+            finally:
+                #after processing,remove the downloaded local resource file
+                os.remove(res_file)
+        #update the client consume data
+        client_metdata = {
+            "resource_id" : status[1][0],
+            "publish_date" : status[1][1],
+            "consume_date": timezone.now()
+        }
+
+        self.update(client_metadata)
+
+        return True
 

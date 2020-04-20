@@ -38,7 +38,7 @@ datetime_pattern = "%Y-%m-%d %H:%M:%S %Z"
 #the vrt pattern to generate a union layer for monthly archive 
 vrt = """<OGRVRTDataSource>
     <OGRVRTUnionLayer name="{}">
-    {}
+{}
     </OGRVRTUnionLayer>
 </OGRVRTDataSource>"""
 #the pattern to populate a individual layer used in the union layer vrt file
@@ -206,7 +206,7 @@ def archive(archive_group,archive_id,start_date,end_date,delete_after_archive=Fa
             logger.debug("Begin to check whether loggedpoint archive file was pushed to blob storage successfully, archive_group={},archive_id={},start_date={},end_date={}".format(
                 archive_group,archive_id,start_date,end_date
             ))
-            d_metadata,d_filename = blob_resource.download(archive_group,resource_id,filename=os.path.join(work_folder,"loggedpoint_download.gpkg"))
+            d_metadata,d_filename = blob_resource.download_resource(archive_group,resource_id,filename=os.path.join(work_folder,"loggedpoint_download.gpkg"))
             d_file_md5 = utils.file_md5(d_filename)
             if metadata["file_md5"] != d_file_md5:
                 raise Exception("Upload loggedpoint archive file failed.source file's md5={}, uploaded file's md5={}".format(metadata["file_md5"],d_file_md5))
@@ -249,7 +249,7 @@ def archive(archive_group,archive_id,start_date,end_date,delete_after_archive=Fa
             logger.debug("Begin to check whether the group vrt file was pused to blob storage successfully, archive_group={},archive_id={},start_date={},end_date={}".format(
                 archive_group,archive_id,start_date,end_date
             ))
-            d_vrt_metadata,d_vrt_filename = blob_resource.download(archive_group,vrt_id,filename=os.path.join(work_folder,"loggedpoint_download.vrt"))
+            d_vrt_metadata,d_vrt_filename = blob_resource.download_resource(archive_group,vrt_id,filename=os.path.join(work_folder,"loggedpoint_download.vrt"))
             d_vrt_file_md5 = utils.file_md5(d_vrt_filename)
             if vrt_metadata["file_md5"] != d_vrt_file_md5:
                 raise Exception("Upload vrt file failed.source file's md5={}, uploaded file's md5={}".format(vrt_metadata["file_md5"],d_vrt_file_md5))

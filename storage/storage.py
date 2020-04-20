@@ -69,11 +69,18 @@ class ResourceStorage(object):
         """
         raise NotImplementedError("Method 'delete_resource' is not implemented.")
 
-    def download(self,resourceid=None,filename=None,overwrite=False,resource_group=None):
+    def download_resources(self,folder=None,overwrite=False,**kwargs):
         """
-        Download the resource with resourceid, and return (resource metadata,local resource's filename)
+        Download the filtered resources, and return (resource metadata,local folder)
         overwrite: remove the existing file or folder if overwrite is True
-        if resourceid is None, return (the current resourceid, the current resource)
+        raise exception if failed or can't find the resource
+        """
+        raise NotImplementedError("Method 'get_resource' is not implemented.")
+
+    def download_resource(self,*args,filename=None,overwrite=False):
+        """
+        Download the resource which is identified by *args, and return (resource metadata,local resource's filename)
+        overwrite: remove the existing file or folder if overwrite is True
         raise exception if failed or can't find the resource
         """
         raise NotImplementedError("Method 'get_resource' is not implemented.")
