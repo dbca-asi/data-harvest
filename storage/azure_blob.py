@@ -586,20 +586,17 @@ class AzureBlobResourceBase(ResourceStorage):
         if unknown_args:
             raise Exception("Unsupported keywords arguments({})".format(unknown_args))
 
+        folder_exist = False
         if folder:
             if os.path.exists(folder):
                 if not os.path.isdir(folder):
-                    #is a folder
+                    #is not a folder
                     raise Exception("The path({}) is not a folder.".format(folder))
-                elif not overwrite:
-                    #already exist and can't overwrite
-                    raise Exception("The path({}) already exists".format(folder))
                 else:
-                    #remove the existing folder
-                    shutil.rmtree(folder)
-
-            #create the folder
-            os.makedirs(folder)
+                    folder_exist = True
+            else:
+                #create the folder
+                os.makedirs(folder)
         else:
             folder = tempfile.mkdtemp(prefix=resource_group)
 
@@ -610,7 +607,15 @@ class AzureBlobResourceBase(ResourceStorage):
         for metadata in metadatas:
             if metadata.get("resource_file") and metadata.get("resource_path"):
                 logger.debug("Download resource {}".format(metadata["resource_path"]))
-                with open(os.path.join(folder,metadata["resource_file"]),'wb') as f:
+                filename = os.path.join(folder,metadata["resource_file"])
+                if folder_exist and os.path.exists(filename):
+                    if not os.path.isfile(filename):
+                        #is not a file
+                        raise Exception("The path({}) is not a file.".format(filename))
+                    elif not overwrite:
+                        raise Exception("The file({}) already exists".format(filename))
+
+                with open(filename,'wb') as f:
                     self.get_blob_client(metadata["resource_path"]).download_blob().readinto(f)
 
         return (metadatas,folder)
@@ -627,7 +632,7 @@ class AzureBlobResourceBase(ResourceStorage):
                     raise Exception("The path({}) is not a file.".format(filename))
                 elif not overwrite:
                     #already exist and can't overwrite
-                    raise Exception("The path({}) already exists".format(filename))
+                    raise Exception("The file({}) already exists".format(filename))
         
         metadata = self.get_resource_metadata(*args,resource_file="current")
     
