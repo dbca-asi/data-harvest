@@ -89,8 +89,7 @@ def continuous_archive(delete_after_archive=False,check=False,max_archive_days=N
     overwrite: if true, overwrite the existing archived file;if false, throw exception if already archived 
     """
     db = settings.DATABASE
-    earliest_date = db.get(earliest_archive_date)[0].date()
-    earliest_date = timezone.nativetime(earliest_date)
+    earliest_date = timezone.nativetime(db.get(earliest_archive_date)[0]).date()
     now = timezone.now()
     today = now.date()
     if settings.END_WORKING_HOUR is not None and now.hour <= settings.END_WORKING_HOUR:
