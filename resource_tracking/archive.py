@@ -31,6 +31,10 @@ restore_sql = """INSERT INTO tracking_loggedpoint (device_id,point,heading,veloc
 
 #The sql to return the loggedpoint data to archive
 archive_sql = "SELECT a.id,a.point,a.heading,a.velocity,a.altitude,a.message,a.source_device_type,a.raw,extract(epoch from a.seen)::bigint as seen,b.deviceid,b.registration FROM tracking_loggedpoint a JOIN tracking_device b ON a.device_id = b.id WHERE a.seen >= '{0}' AND a.seen < '{1}'"
+backup_sql_with_create_table = "SELECT a.id,a.point,a.heading,a.velocity,a.altitude,a.message,a.source_device_type,a.raw,a.seen,b.deviceid,b.registration INTO \"{2}\" FROM tracking_loggedpoint a JOIN tracking_device b ON a.device_id = b.id WHERE a.seen >= '{0}' AND a.seen < '{1}'"
+backup_sql = """INSERT INTO "{2}" (id,point,heading,velocity,altitude,message,source_device_type,raw,seen,deviceid,registration) 
+    SELECT a.id,a.point,a.heading,a.velocity,a.altitude,a.message,a.source_device_type,a.raw,a.seen,b.deviceid,b.registration 
+    FROM tracking_loggedpoint a JOIN tracking_device b ON a.device_id = b.id WHERE a.seen >= '{0}' AND a.seen < '{1}'"""
 #the sql to delete the archived loggedpoint from table tracking_loggedpoint
 del_sql = "DELETE FROM tracking_loggedpoint WHERE seen >= '{0}' AND seen < '{1}'"
 #the datetime pattern used in the sql
@@ -54,6 +58,8 @@ get_archive_id= lambda d:d.strftime("loggedpoint%Y-%m-%d")
 get_vrt_id= lambda archive_group:"loggedpoint{}.vrt".format(archive_group)
 get_vrt_layername= lambda archive_group:"loggedpoint{}".format(archive_group)
 
+get_backup_table= lambda d:"tracking_loggedpoint_{}".format(d.strftime('%Y'))
+
 index_metaname = "loggedpoint_index"
 
 get_metaname = lambda archive_group:"loggedpoint{}".format(archive_group.split("-")[0])
@@ -74,7 +80,7 @@ def get_blob_resource():
         )
     return _blob_resource
 
-def continuous_archive(delete_after_archive=False,check=False,max_archive_days=None,overwrite=False):
+def continuous_archive(delete_after_archive=False,check=False,max_archive_days=None,overwrite=False,backup_to_archive_table=True):
     """
     Continuous archiving the loggedpoint.
     delete_after_archive: delete the archived data from table tracking_loggedpoint
@@ -103,11 +109,11 @@ def continuous_archive(delete_after_archive=False,check=False,max_archive_days=N
         earliest_date,last_archive_date,delete_after_archive,check,max_archive_days
     ))
     while archive_date < last_archive_date and (not max_archive_days or archived_days < max_archive_days):
-        archive_by_date(archive_date,delete_after_archive=delete_after_archive,check=check,overwrite=overwrite)
+        archive_by_date(archive_date,delete_after_archive=delete_after_archive,check=check,overwrite=overwrite,backup_to_archive_table=backup_to_archive_table)
         archive_date += timedelta(days=1)
         archived_days += 1
 
-def archive_by_month(year,month,delete_after_archive=False,check=False,overwrite=False):
+def archive_by_month(year,month,delete_after_archive=False,check=False,overwrite=False,backup_to_archive_table=True):
     """
     Archive the logged point for the month.
     delete_after_archive: delete the archived data from table tracking_loggedpoint
@@ -129,10 +135,10 @@ def archive_by_month(year,month,delete_after_archive=False,check=False,overwrite
     ))
 
     while archive_date < last_archive_date:
-        archive_by_date(archive_date,delete_after_archive=delete_after_archive,check=check,overwrite=overwrite)
+        archive_by_date(archive_date,delete_after_archive=delete_after_archive,check=check,overwrite=overwrite,backup_to_archive_table=backup_to_archive_table)
         archive_date += timedelta(days=1)
 
-def archive_by_date(d,delete_after_archive=False,check=False,overwrite=False):
+def archive_by_date(d,delete_after_archive=False,check=False,overwrite=False,backup_to_archive_table=True):
     """
     Archive the logged point within the specified date
     delete_after_archive: delete the archived data from table tracking_loggedpoint
@@ -147,7 +153,8 @@ def archive_by_date(d,delete_after_archive=False,check=False,overwrite=False):
     archive_id= get_archive_id(d)
     start_date = timezone.datetime(d.year,d.month,d.day)
     end_date = start_date + timedelta(days=1)
-    return archive(archive_group,archive_id,start_date,end_date,delete_after_archive=delete_after_archive,check=check,overwrite=overwrite)
+    backup_table = get_backup_table(d) if backup_to_archive_table else None
+    return archive(archive_group,archive_id,start_date,end_date,delete_after_archive=delete_after_archive,check=check,overwrite=overwrite,backup_table=backup_table)
 
 
 def _set_end_datetime(key):
@@ -155,7 +162,7 @@ def _set_end_datetime(key):
         metadata[key] = timezone.now()
     return _func
 
-def archive(archive_group,archive_id,start_date,end_date,delete_after_archive=False,check=False,overwrite=False):
+def archive(archive_group,archive_id,start_date,end_date,delete_after_archive=False,check=False,overwrite=False,backup_table=None):
     """
     Archive the resouce tracking history by start_date(inclusive), end_date(exclusive)
     archive_id: a unique identity of the archive file. that means different start_date and end_date should have a different archive_id
@@ -255,6 +262,19 @@ def archive(archive_group,archive_id,start_date,end_date,delete_after_archive=Fa
                 raise Exception("Upload vrt file failed.source file's md5={}, uploaded file's md5={}".format(vrt_metadata["file_md5"],d_vrt_file_md5))
 
         if delete_after_archive:
+            if backup_table:
+                if db.is_table_exist(backup_table):
+                    #table already exist
+                    sql = backup_sql.format(start_date.strftime(datetime_pattern),end_date.strftime(datetime_pattern),backup_table)
+                else:
+                    #table doesn't exist
+                    sql = backup_sql_with_create_table.format(start_date.strftime(datetime_pattern),end_date.strftime(datetime_pattern),backup_table)
+                count = db.update(sql)
+                if count == layer_metadata["features"]:
+                    logger.debug("Backup {1} features to backup table {0}".format(backup_table,count))
+                else:
+                    raise Exception("Only backup {1}/{2} features to backup table {0}".format(backup_table,count,layer_metadata["features"]))
+
             logger.debug("Begin to delete archived data, archive_group={},archive_id={},start_date={},end_date={}".format(
                 archive_group,archive_id,start_date,end_date
             ))

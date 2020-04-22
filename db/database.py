@@ -136,6 +136,9 @@ class PostgreSQL(object):
             count_sql = "select count(1) from \"{}\"".format(table)
         return self.get(count_sql)[0]
 
+    def is_table_exist(self,table):
+        return True if self.get("SELECT COUNT(*) FROM pg_class WHERE relname = '{}'".format(table))[0] else False
+
     def import_spatial_data(self,spatialfile,layer=None,table=None,overwrite=True):
         """
         import spatial data to database
