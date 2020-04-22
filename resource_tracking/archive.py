@@ -373,7 +373,7 @@ def _restore_data(filename,restore_to_origin_table=False,preserve_id=True):
     else:
         return imported_table
 
-def download_by_month(year,month,folder=None):
+def download_by_month(year,month,folder=None,overwrite=False):
     """
     download the loggedpoint from archived files for the month
     """
@@ -382,10 +382,10 @@ def download_by_month(year,month,folder=None):
     logger.info("Begin to download archived loggedpoint, archive_group={}".format(archive_group))
     blob_resource = get_blob_resource()
     folder = folder or tempfile.mkdtemp(prefix="loggedpoint{}".format(d.strftime("%Y-%m")))
-    metadata,folder = blob_resource.download_resources(resource_group=archive_group,folder=folder,overwrite=True)
+    metadata,folder = blob_resource.download_resources(resource_group=archive_group,folder=folder,overwrite=overwrite)
     logger.info("End to download archived loggedpoint, archive_group={},downloaded_folder={}".format(archive_group,folder))
 
-def download_by_date(d,folder=None):
+def download_by_date(d,folder=None,overwrite=False):
     """
     Download the loggedpoint from archived files for the day
     """
@@ -395,7 +395,7 @@ def download_by_date(d,folder=None):
     logger.info("Begin to download archived loggedpoint, archive_group={},archive_id={}".format(archive_group,archive_id))
     blob_resource = get_blob_resource()
     folder = folder or tempfile.mkdtemp(prefix="loggedpoint{}".format(d.strftime("%Y-%m-%d")))
-    metadata,filename = blob_resource.download_resource(archive_group,resource_id,filename=os.path.join(folder,resource_id))
+    metadata,filename = blob_resource.download_resource(archive_group,resource_id,filename=os.path.join(folder,resource_id),overwrite=overwrite)
     logger.info("End to download archived loggedpoint, archive_group={},archive_id={},dowloaded_file={}".format(archive_group,archive_id,filename))
 
 def user_confirm(message,possible_answers,case_sensitive=False):
