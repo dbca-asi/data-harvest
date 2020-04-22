@@ -109,6 +109,17 @@ def continuous_archive(delete_after_archive=False,check=False,max_archive_days=N
         earliest_date,last_archive_date,delete_after_archive,check,max_archive_days
     ))
     while archive_date < last_archive_date and (not max_archive_days or archived_days < max_archive_days):
+        now = timezone.now()
+        if settings.END_WORKING_HOUR is not None and now.hour <= settings.END_WORKING_HOUR:
+            if settings.START_WORKING_HOUR is None or now.hour >= settings.START_WORKING_HOUR:
+                logger.info("Stop archiving in working hour")
+                break
+
+        if settings.START_WORKING_HOUR is not None and now.hour >= settings.START_WORKING_HOUR:
+            if settings.END_WORKING_HOUR is None or now.hour <= settings.END_WORKING_HOUR:
+                logger.info("Stop archiving in working hour")
+                break
+
         archive_by_date(archive_date,delete_after_archive=delete_after_archive,check=check,overwrite=overwrite,backup_to_archive_table=backup_to_archive_table)
         archive_date += timedelta(days=1)
         archived_days += 1
