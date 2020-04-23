@@ -9,6 +9,8 @@ import psycopg2
 
 from utils import parse_db_connection_string,classproperty,gdal
 
+from . import exceptions
+
 
 
 logger = logging.getLogger(__name__)
@@ -64,6 +66,7 @@ class PostgreSQL(object):
     def get(self,sql,columns=None):
         """
         Execute select sql and return a list of data or a dict if columns is not None
+        Throw exception 'DataNotFound' if can't find the data 
         """
         if self._cursor:
             return self._get(sql,columns=columns)
@@ -73,10 +76,14 @@ class PostgreSQL(object):
                 
     def _get(self,sql,columns=None):
         self._cursor.execute(sql)
-        if columns:
-            return dict(zip(columns,self._cursor.fetchone()))
+        row = self._cursor.fetchone()
+        if row is None:
+            raise exceptions.DataNotExist()
         else:
-            return self._cursor.fetchone()
+            if columns:
+                return dict(zip(columns,row))
+            else:
+                return row
 
     def update(self,sql,commit=True,autocommit=False):
         """
