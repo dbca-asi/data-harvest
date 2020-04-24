@@ -113,6 +113,10 @@ def continuous_archive(delete_after_archive=False,check=False,max_archive_days=N
     logger.info("Begin to continuous archiving loggedpoint, earliest archive date={0},last archive date = {1}, delete_after_archive={2}, check={3}, max_archive_days={4}".format(
         earliest_date,last_archive_date,delete_after_archive,check,max_archive_days
     ))
+    if archive_date >= last_archive_date:
+        logger.info("No more data to archive")
+        return
+
     while archive_date < last_archive_date and (not max_archive_days or archived_days < max_archive_days):
         now = timezone.now()
         if settings.END_WORKING_HOUR is not None and now.hour <= settings.END_WORKING_HOUR:
