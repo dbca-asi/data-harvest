@@ -14,6 +14,7 @@ parser.add_argument('year', type=int, action='store',choices=[y for y in range(y
 parser.add_argument('month', type=int, action='store',choices=[m for m in range(1,13)],help='The month of the logged points')
 parser.add_argument('day', type=int, action='store',choices=[d for d in range(1,32)],nargs="?",help='The day of the logged points')
 parser.add_argument('--folder',dest='folder', action='store',help='The folder to place the downloaded file')
+parser.add_argument('--overwrite', action='store_true',help='Overwrite the existing file if file already exists')
 
 
 def run():
@@ -31,10 +32,10 @@ def run():
 
     if args.day:
         #download by date
-        archive.download_by_date(d,folder=args.folder)
+        archive.download_by_date(d,folder=args.folder,overwrite=args.overwrite)
     else:
         #download by month
-        archive.download_by_month(d.year,d.month,folder=args.folder)
+        archive.download_by_month(d.year,d.month,folder=args.folder,overwrite=args.overwrite)
 
 
 

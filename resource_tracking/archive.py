@@ -31,6 +31,10 @@ restore_sql = """INSERT INTO tracking_loggedpoint (device_id,point,heading,veloc
 
 #The sql to return the loggedpoint data to archive
 archive_sql = "SELECT a.id,a.point,a.heading,a.velocity,a.altitude,a.message,a.source_device_type,a.raw,extract(epoch from a.seen)::bigint as seen,b.deviceid,b.registration FROM tracking_loggedpoint a JOIN tracking_device b ON a.device_id = b.id WHERE a.seen >= '{0}' AND a.seen < '{1}'"
+backup_sql_with_create_table = "SELECT a.id,a.point,a.heading,a.velocity,a.altitude,a.message,a.source_device_type,a.raw,a.seen,b.deviceid,b.registration INTO \"{2}\" FROM tracking_loggedpoint a JOIN tracking_device b ON a.device_id = b.id WHERE a.seen >= '{0}' AND a.seen < '{1}'"
+backup_sql = """INSERT INTO "{2}" (id,point,heading,velocity,altitude,message,source_device_type,raw,seen,deviceid,registration) 
+    SELECT a.id,a.point,a.heading,a.velocity,a.altitude,a.message,a.source_device_type,a.raw,a.seen,b.deviceid,b.registration 
+    FROM tracking_loggedpoint a JOIN tracking_device b ON a.device_id = b.id WHERE a.seen >= '{0}' AND a.seen < '{1}'"""
 #the sql to delete the archived loggedpoint from table tracking_loggedpoint
 del_sql = "DELETE FROM tracking_loggedpoint WHERE seen >= '{0}' AND seen < '{1}'"
 #the datetime pattern used in the sql
@@ -54,6 +58,8 @@ get_archive_id= lambda d:d.strftime("loggedpoint%Y-%m-%d")
 get_vrt_id= lambda archive_group:"loggedpoint{}.vrt".format(archive_group)
 get_vrt_layername= lambda archive_group:"loggedpoint{}".format(archive_group)
 
+get_backup_table= lambda d:"tracking_loggedpoint_{}".format(d.strftime('%Y'))
+
 index_metaname = "loggedpoint_index"
 
 get_metaname = lambda archive_group:"loggedpoint{}".format(archive_group.split("-")[0])
@@ -74,7 +80,7 @@ def get_blob_resource():
         )
     return _blob_resource
 
-def continuous_archive(delete_after_archive=False,check=False,max_archive_days=None,overwrite=False):
+def continuous_archive(delete_after_archive=False,check=False,max_archive_days=None,overwrite=False,backup_to_archive_table=True):
     """
     Continuous archiving the loggedpoint.
     delete_after_archive: delete the archived data from table tracking_loggedpoint
@@ -83,7 +89,12 @@ def continuous_archive(delete_after_archive=False,check=False,max_archive_days=N
     overwrite: if true, overwrite the existing archived file;if false, throw exception if already archived 
     """
     db = settings.DATABASE
-    earliest_date = db.get(earliest_archive_date)[0].date()
+    earliest_date = db.get(earliest_archive_date)[0]
+    if earliest_date is None:
+        logger.info("No more data to archive")
+        return
+
+    earliest_date = timezone.nativetime(earliest_date).date()
     now = timezone.now()
     today = now.date()
     if settings.END_WORKING_HOUR is not None and now.hour <= settings.END_WORKING_HOUR:
@@ -102,12 +113,27 @@ def continuous_archive(delete_after_archive=False,check=False,max_archive_days=N
     logger.info("Begin to continuous archiving loggedpoint, earliest archive date={0},last archive date = {1}, delete_after_archive={2}, check={3}, max_archive_days={4}".format(
         earliest_date,last_archive_date,delete_after_archive,check,max_archive_days
     ))
+    if archive_date >= last_archive_date:
+        logger.info("No more data to archive")
+        return
+
     while archive_date < last_archive_date and (not max_archive_days or archived_days < max_archive_days):
-        archive_by_date(archive_date,delete_after_archive=delete_after_archive,check=check,overwrite=overwrite)
+        now = timezone.now()
+        if settings.END_WORKING_HOUR is not None and now.hour <= settings.END_WORKING_HOUR:
+            if settings.START_WORKING_HOUR is None or now.hour >= settings.START_WORKING_HOUR:
+                logger.info("Stop archiving in working hour")
+                break
+
+        if settings.START_WORKING_HOUR is not None and now.hour >= settings.START_WORKING_HOUR:
+            if settings.END_WORKING_HOUR is None or now.hour <= settings.END_WORKING_HOUR:
+                logger.info("Stop archiving in working hour")
+                break
+
+        archive_by_date(archive_date,delete_after_archive=delete_after_archive,check=check,overwrite=overwrite,backup_to_archive_table=backup_to_archive_table)
         archive_date += timedelta(days=1)
         archived_days += 1
 
-def archive_by_month(year,month,delete_after_archive=False,check=False,overwrite=False):
+def archive_by_month(year,month,delete_after_archive=False,check=False,overwrite=False,backup_to_archive_table=True):
     """
     Archive the logged point for the month.
     delete_after_archive: delete the archived data from table tracking_loggedpoint
@@ -129,10 +155,10 @@ def archive_by_month(year,month,delete_after_archive=False,check=False,overwrite
     ))
 
     while archive_date < last_archive_date:
-        archive_by_date(archive_date,delete_after_archive=delete_after_archive,check=check,overwrite=overwrite)
+        archive_by_date(archive_date,delete_after_archive=delete_after_archive,check=check,overwrite=overwrite,backup_to_archive_table=backup_to_archive_table)
         archive_date += timedelta(days=1)
 
-def archive_by_date(d,delete_after_archive=False,check=False,overwrite=False):
+def archive_by_date(d,delete_after_archive=False,check=False,overwrite=False,backup_to_archive_table=True):
     """
     Archive the logged point within the specified date
     delete_after_archive: delete the archived data from table tracking_loggedpoint
@@ -147,7 +173,8 @@ def archive_by_date(d,delete_after_archive=False,check=False,overwrite=False):
     archive_id= get_archive_id(d)
     start_date = timezone.datetime(d.year,d.month,d.day)
     end_date = start_date + timedelta(days=1)
-    return archive(archive_group,archive_id,start_date,end_date,delete_after_archive=delete_after_archive,check=check,overwrite=overwrite)
+    backup_table = get_backup_table(d) if backup_to_archive_table else None
+    return archive(archive_group,archive_id,start_date,end_date,delete_after_archive=delete_after_archive,check=check,overwrite=overwrite,backup_table=backup_table)
 
 
 def _set_end_datetime(key):
@@ -155,7 +182,7 @@ def _set_end_datetime(key):
         metadata[key] = timezone.now()
     return _func
 
-def archive(archive_group,archive_id,start_date,end_date,delete_after_archive=False,check=False,overwrite=False):
+def archive(archive_group,archive_id,start_date,end_date,delete_after_archive=False,check=False,overwrite=False,backup_table=None):
     """
     Archive the resouce tracking history by start_date(inclusive), end_date(exclusive)
     archive_id: a unique identity of the archive file. that means different start_date and end_date should have a different archive_id
@@ -255,6 +282,19 @@ def archive(archive_group,archive_id,start_date,end_date,delete_after_archive=Fa
                 raise Exception("Upload vrt file failed.source file's md5={}, uploaded file's md5={}".format(vrt_metadata["file_md5"],d_vrt_file_md5))
 
         if delete_after_archive:
+            if backup_table:
+                if db.is_table_exist(backup_table):
+                    #table already exist
+                    sql = backup_sql.format(start_date.strftime(datetime_pattern),end_date.strftime(datetime_pattern),backup_table)
+                else:
+                    #table doesn't exist
+                    sql = backup_sql_with_create_table.format(start_date.strftime(datetime_pattern),end_date.strftime(datetime_pattern),backup_table)
+                count = db.update(sql)
+                if count == layer_metadata["features"]:
+                    logger.debug("Backup {1} features to backup table {0}".format(backup_table,count))
+                else:
+                    raise Exception("Only backup {1}/{2} features to backup table {0}".format(backup_table,count,layer_metadata["features"]))
+
             logger.debug("Begin to delete archived data, archive_group={},archive_id={},start_date={},end_date={}".format(
                 archive_group,archive_id,start_date,end_date
             ))
@@ -353,7 +393,7 @@ def _restore_data(filename,restore_to_origin_table=False,preserve_id=True):
     else:
         return imported_table
 
-def download_by_month(year,month,folder=None):
+def download_by_month(year,month,folder=None,overwrite=False):
     """
     download the loggedpoint from archived files for the month
     """
@@ -362,10 +402,10 @@ def download_by_month(year,month,folder=None):
     logger.info("Begin to download archived loggedpoint, archive_group={}".format(archive_group))
     blob_resource = get_blob_resource()
     folder = folder or tempfile.mkdtemp(prefix="loggedpoint{}".format(d.strftime("%Y-%m")))
-    metadata,folder = blob_resource.download_resources(resource_group=archive_group,folder=folder,overwrite=True)
+    metadata,folder = blob_resource.download_resources(resource_group=archive_group,folder=folder,overwrite=overwrite)
     logger.info("End to download archived loggedpoint, archive_group={},downloaded_folder={}".format(archive_group,folder))
 
-def download_by_date(d,folder=None):
+def download_by_date(d,folder=None,overwrite=False):
     """
     Download the loggedpoint from archived files for the day
     """
@@ -375,7 +415,7 @@ def download_by_date(d,folder=None):
     logger.info("Begin to download archived loggedpoint, archive_group={},archive_id={}".format(archive_group,archive_id))
     blob_resource = get_blob_resource()
     folder = folder or tempfile.mkdtemp(prefix="loggedpoint{}".format(d.strftime("%Y-%m-%d")))
-    metadata,filename = blob_resource.download_resource(archive_group,resource_id,filename=os.path.join(folder,resource_id))
+    metadata,filename = blob_resource.download_resource(archive_group,resource_id,filename=os.path.join(folder,resource_id),overwrite=overwrite)
     logger.info("End to download archived loggedpoint, archive_group={},archive_id={},dowloaded_file={}".format(archive_group,archive_id,filename))
 
 def user_confirm(message,possible_answers,case_sensitive=False):
