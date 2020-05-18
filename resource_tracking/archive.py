@@ -8,8 +8,8 @@ from datetime import date,timedelta
 from utils import timezone,gdal
 import utils
 
-from storage.azure_blob import AzureBlobIndexedGroupResource
-from storage.exception import ResourceAlreadyExist
+from data_storage import AzureBlobIndexedGroupResource
+from data_storage.exceptions import ResourceAlreadyExist
 
 from . import settings
 

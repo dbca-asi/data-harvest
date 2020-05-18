@@ -1,7 +1,7 @@
 import pytz
 import logging.config
 
-from env import env
+from utils.env import env
 from datetime import datetime
 
 DEBUG = env("DEBUG",False)
@@ -29,12 +29,22 @@ LOG_CONFIG = {
             'level': 'DEBUG' if DEBUG else 'INFO',
             'propagate':False
         },
-        'storage': {
+        'data_storage': {
             'handlers': ['console'],
             'level': 'DEBUG' if DEBUG else 'INFO',
             'propagate':False
         },
         'db': {
+            'handlers': ['console'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate':False
+        },
+        'files': {
+            'handlers': ['console'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate':False
+        },
+        'nginx': {
             'handlers': ['console'],
             'level': 'DEBUG' if DEBUG else 'INFO',
             'propagate':False

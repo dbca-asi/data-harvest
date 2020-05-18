@@ -1,11 +1,5 @@
-import socket
-import logging
-
 from common_settings import *
-from utils import parse_db_connection_string,classproperty
 from db.database import PostgreSQL
-
-import psycopg2
 
 DATABASE = PostgreSQL(env("RESOURCE_TRACKING_DATABASE_URL",vtype=str,required=True))
 

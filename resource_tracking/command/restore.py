@@ -8,7 +8,7 @@ now = datetime.now()
 today = now.date()
 year = now.year
 
-parser = argparse.ArgumentParser(prog="restore",description='Restore the logged points from archive')
+parser = argparse.ArgumentParser(prog="restore",description='Restore the logged points from blob storage')
 parser.add_argument('year', type=int, action='store',choices=[y for y in range(year - 30,year + 1,1)],help='The year of the logged points')
 parser.add_argument('month', type=int, action='store',choices=[m for m in range(1,13)],help='The month of the logged points')
 parser.add_argument('day', type=int, action='store',choices=[d for d in range(1,32)],nargs="?",help='The day of the logged points')
