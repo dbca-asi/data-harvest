@@ -8,7 +8,7 @@ from resource_tracking import archive
 
 logger = logging.getLogger(__name__)
 
-parser = argparse.ArgumentParser(prog="restore",description='Archive the logged points')
+parser = argparse.ArgumentParser(prog="continuous_archive",description='Continuous archiving the logged points and push it to blob storage')
 parser.add_argument('--check',  action='store_true',help='Download the archived files to check whether it was archived successfully or not')
 parser.add_argument('--delete', action='store_true',help='Delete the archived logged points from table after archiving')
 parser.add_argument('--max-archive-days',dest="max_archive_days", type=int,action='store',help='Maximum days to archive')
