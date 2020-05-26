@@ -19,5 +19,14 @@ def get_blob_resource():
         )
     return _blob_resource
 
+def need_archive(path):
+    if path[0] == ".":
+        return False
+    elif path.endswith(".edit"):
+        return False
+
+    return True
+
+
 def archive():
-    files.archive(get_blob_resource(),folder=settings.NGINX_ARCHIVE_FOLDER,recursive=True,reserve_folder=settings.RESERVE_FOLDER,archive=False)
+    files.archive(get_blob_resource(),folder=settings.NGINX_ARCHIVE_FOLDER,recursive=True,reserve_folder=settings.RESERVE_FOLDER,archive=False,file_filter=need_archive)
