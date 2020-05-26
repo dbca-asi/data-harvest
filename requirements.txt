@@ -6,4 +6,4 @@ psycopg2==2.8.4
 
 azure-storage-blob
 
-git+git://github.com/dbca-wa/data-storage#egg=data-storage
+git+git://github.com/dbca-wa/data-storage@v2.0#egg=data-storage
