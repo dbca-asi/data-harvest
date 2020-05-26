@@ -52,7 +52,7 @@ def archive(storage,files=None,folder=None,recursive=False,file_filter=None,rese
             for f in os.listdir(cur_folder):
                 f_path = os.path.join(cur_folder,f)
                 if os.path.isfile(f_path):
-                    if not file_filter or file_filter(f_path):
+                    if not file_filter or file_filter(os.path.relpath(f_path,folder)):
                         if reserve_folder:
                             archive_files.append((f_path,os.path.relpath(f_path,folder)))
                         else:

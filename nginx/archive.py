@@ -1,3 +1,5 @@
+import os
+
 from data_storage.azure_blob import AzureBlobResource
 from data_storage.exceptions import ResourceAlreadyExist
 
@@ -20,9 +22,10 @@ def get_blob_resource():
     return _blob_resource
 
 def need_archive(path):
-    if path[0] == ".":
+    file_folder,file_name = os.path.split(path)
+    if file_name[0] == ".":
         return False
-    elif path.endswith(".edit"):
+    elif file_name.endswith(".edit"):
         return False
 
     return True
