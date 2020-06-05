@@ -1,5 +1,4 @@
 from common_settings import *
-from db.database import PostgreSQL
 
 AZURE_CONNECTION_STRING = env("NGINX_STORAGE_CONNECTION_STRING",vtype=str,required=True)
 AZURE_CONTAINER = env("NGINX_CONTAINER",vtype=str,required=True)

@@ -9,7 +9,8 @@ import subprocess
 
 from utils import timezone
 from . import settings
-from data_storage.utils import JSONEncoder
+from data_storage.utils import JSONEncoder,JSONDecoder
+from data_storage import AzureBlobGroupResource
 
 pip_install_re = re.compile("^\s*RUN\s+(?P<pip>pip[0-9]?)\s+install\s+.+\-r\s+[\S]+",re.IGNORECASE)
 python_run_re = re.compile("^\s*RUN\s+(?P<python>python[0-9]?)\s+[\S]+",re.IGNORECASE)
@@ -58,60 +59,72 @@ def prebuild(workdir,buildpath,dockerfile):
 
     #get the git repository information
     #try to get the current branch, modified files and untracked files
-    git_status = subprocess.check_output("cd {}&&git status -b -s -u --porcelain".format(buildpath),shell=True).decode()
-    git_status_lines = git_status.split(os.linesep)
     changed_files = []
     branch = None
     repository = None
     tag = None
-    for line in git_status_lines:
-        if line.startswith("## "):
-            if "(no branch)" in line.lower():
-                branch = None
-                repository = None
-            else:
-                branch_data = line[3:].strip()
-                if "..." in branch_data:
-                    branch_local,branch_remote = branch_data.split("...",maxsplit=1)
-                    repository_name,branch = branch_remote.split("/",1)
-                    repository = subprocess.check_output("cd {}&&git remote get-url {}".format(buildpath,repository_name),shell=True).decode()
-                else:
-                    branch = branch_data
-                    repository = None
-            pass
-        elif line:
-            #untracked files
-            changed_files.append(line)
-    if not branch:
-        #it attached to a tag or a remote branch
-        git_status = subprocess.check_output("cd {}&&git status".format(buildpath),shell=True).decode()
-        m = detached_re.search(git_status)
-        if not m:
-            raise Exception("Can't find the attach point with git")
-        attach_point = m.group("attach_point")
-        if "/" in attach_point:
-            #attached to a remote repository
-            repository_name,branch = attach_point.split("/",1)
-            repository = subprocess.check_output("cd {}&&git remote get-url {}".format(buildpath,repository_name),shell=True).decode()
-        else:
-            #attached to a tag
-            tag = attach_point
-            remotes = subprocess.check_output("cd {}&&git remote".format(buildpath),shell=True).decode()
-            remotes = remotes.split(os.linesep)
-            for remote in remotes:
-                tag_data = subprocess.check_output("cd {}&&git ls-remote --tags {} | grep \"refs/tags/{}\"".format(buildpath,remotes[0],tag),shell=True).decode()
-                if "refs/tags/{}".format(tag) in tag_data:
-                    repository = subprocess.check_output("cd {}&&git remote get-url {}".format(buildpath,remote),shell=True).decode()
-                    break
-
-    #get the latest commit
-    commit_data = subprocess.check_output("cd {}&&git log -n 1".format(buildpath),shell=True).decode()
-    m = commitid_re.search(commit_data)
     last_commit = None
-    if  m:
-        last_commit = m.group("commitid")
+    if os.path.exists(os.path.join(buildpath,".git")):
+        #is a git repository
+        git_status = subprocess.check_output("cd {}&&git status -b -s -u --porcelain".format(buildpath),shell=True).decode()
+        git_status_lines = git_status.split(os.linesep)
+        for line in git_status_lines:
+            if line.startswith("## "):
+                if "(no branch)" in line.lower():
+                    branch = None
+                    repository = None
+                else:
+                    branch_data = line[3:].strip()
+                    if "..." in branch_data:
+                        branch_local,branch_remote = branch_data.split("...",maxsplit=1)
+                        repository_name,branch = branch_remote.split("/",1)
+                        repository = subprocess.check_output("cd {}&&git remote get-url {}".format(buildpath,repository_name),shell=True).decode().strip()
+                        branch = "{}/tree/{}".format(repository,branch)
+                    else:
+                        branch = branch_data
+                        repository = None
+                pass
+            elif line:
+                #untracked files
+                changed_files.append(line)
+        if not branch:
+            #it attached to a tag or a remote branch
+            git_status = subprocess.check_output("cd {}&&git status".format(buildpath),shell=True).decode()
+            m = detached_re.search(git_status)
+            if not m:
+                raise Exception("Can't find the attach point with git")
+            attach_point = m.group("attach_point")
+            if "/" in attach_point:
+                #attached to a remote repository
+                repository_name,branch = attach_point.split("/",1)
+                repository = subprocess.check_output("cd {}&&git remote get-url {}".format(buildpath,repository_name),shell=True).decode().strip()
+                branch = "{}/tree/{}".format(repository,branch)
+            else:
+                #attached to a tag
+                tag = attach_point
+                remotes = subprocess.check_output("cd {}&&git remote".format(buildpath),shell=True).decode()
+                remotes = remotes.split(os.linesep)
+                for remote in remotes:
+                    tag_data = subprocess.check_output("cd {}&&git ls-remote --tags {} | grep \"refs/tags/{}\"".format(buildpath,remotes[0],tag),shell=True).decode()
+                    if "refs/tags/{}".format(tag) in tag_data:
+                        repository = subprocess.check_output("cd {}&&git remote get-url {}".format(buildpath,remote),shell=True).decode().strip()
+                        tag = "{}/tree/{}".format(repository,tag)
+                        break
+    
+        if not repository:
+            remotes = subprocess.check_output("cd {}&&git remote".format(buildpath),shell=True).decode()
+            if "origin" in remotes:
+                repository = subprocess.check_output("cd {}&&git remote get-url {}".format(buildpath,"origin"),shell=True).decode().strip()
+            else:
+                repository = subprocess.check_output("cd {}&&git remote get-url {}".format(buildpath,remotes[0]),shell=True).decode().strip()
+    
+        #get the latest commit
+        commit_data = subprocess.check_output("cd {}&&git log -n 1".format(buildpath),shell=True).decode()
+        m = commitid_re.search(commit_data)
+        if  m:
+            last_commit = m.group("commitid")
 
-    image_metadata["git_repository"] = repository.strip()
+    image_metadata["git_repository"] = repository
     image_metadata["git_branch"] = branch
     image_metadata["git_tag"] = tag
     image_metadata["git_last_commit"] = last_commit
@@ -135,8 +148,9 @@ def prebuild(workdir,buildpath,dockerfile):
     #copy the image_harvester.py to build path
     shutil.copyfile(os.path.join(settings.MODULE_DIR,"image_harvester.py"),image_harvester_file)
 
-    harvest_statements = lambda image_metadata:harvest_statements_template.format(image_harvester=os.path.relpath(image_harvester_file,buildpath),image_metadata_file=os.path.relpath(image_metadata_file,buildpath),python=image_metadata.get("image_python","python"))
+    harvest_statements = lambda image_metadata:harvest_statements_template.format(image_harvester=os.path.relpath(image_harvester_file,buildpath),image_metadata_file=os.path.relpath(image_metadata_file,buildpath),python=(image_python or "python"))
     first_line = True
+    image_python = None
     with open(new_dockerfile,'w') as wf:
         new_dockerfile = wf.name
         with open(dockerfile,'r') as f:
@@ -209,11 +223,11 @@ def prebuild(workdir,buildpath,dockerfile):
                                 if cmd_found:
                                     raise Exception("Please move the statement 'CMD' under statement '{}' ".format(line))
                                 continue
-                            if "image_python" not in image_metadata:
+                            if not image_python:
                                 m = python_run_re.search(line)
                                 if m:
                                     image_metadata["image_language"] = "python"
-                                    image_metadata["image_python"] = m.group("python")
+                                    image_python = m.group("python")
                                     if user_found:
                                         raise Exception("Please move the statement 'USER' under statement '{}' ".format(line))
                                     if cmd_found:
@@ -306,13 +320,46 @@ def prebuild(workdir,buildpath,dockerfile):
 
     print(new_dockerfile)
 
+
+_blob_resource = None
+def get_blob_resource():
+    """
+    Return the blob resource client
+    """
+    global _blob_resource
+    if _blob_resource is None:
+        _blob_resource = AzureBlobGroupResource(
+            settings.DOCKER_RESOURCE_NAME,
+            settings.AZURE_CONNECTION_STRING,
+            settings.AZURE_CONTAINER,
+            archive=False,
+        )
+    return _blob_resource
+
+resource_file = lambda imageid:imageid.replace("/","_").replace(":","_").replace('.','-')
+resource_group = lambda imageid:imageid.replace("/","_").replace(":","_").replace('.','-')
 def harvest(imageid):
     """
     called before building docker image
     Add some commands to Dockerfile to detect the python library dependency
     """
-    metadata = subprocess.check_output("docker container run {} cat /image_metadata.json".format(imageid),shell=True).decode()
-    print(metadata)
+    docker_metadata = subprocess.check_output("docker container run {} cat /image_metadata.json".format(imageid),shell=True).decode()
+    docker_metadata = json.loads(docker_metadata,cls=JSONDecoder)
+
+    docker_account,remains = imageid.split("/",1)
+    docker_repository,docker_repository_tag = remains.split(":",1)
+
+    docker_metadata["docker_account"] = docker_account
+    docker_metadata["docker_repository"] = docker_repository
+    docker_metadata["docker_repository_tag"] = docker_repository_tag
+
+
+    metadata = {
+        "resource_id":imageid,
+        "resource_file":"{}_{}_{}.json".format(docker_account,docker_repository,docker_repository_tag),
+        "resource_group":"{}_{}".format(docker_account,docker_repository),
+    }
+    resourcemetadata = get_blob_resource().push_json(docker_metadata,metadata=metadata)
 
 
 

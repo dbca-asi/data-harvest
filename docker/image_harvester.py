@@ -1,5 +1,6 @@
 import subprocess
 import re
+import traceback
 import sys
 import os
 import platform
@@ -25,7 +26,6 @@ def harvest():
 
     #get os information
     metadata["image_platform"] = sys.platform
-    metadata["image_python"] = platform.python_version()
     os_release_name = None
     os_version = None
     os_name = None
@@ -46,13 +46,16 @@ def harvest():
     if metadata.get("image_language") == "python":
         metadata["image_language_major_version"] = sys.version_info[0]
         metadata["image_language_version"] = "{}.{}.{}".format(*sys.version_info[0:3])
-
+    
     if not is_installed("pipdeptree"):
-        subprocess.check_call("{} install {}".format(pip,pipdeptree),shell=True)
+        try:
+            subprocess.check_call("{} install pipdeptree".format(metadata.get("image_pip","pip")),shell=True)
+        except :
+            trackback.print_exc()
+            
         pipdeptree_installed = False
     else:
         pipdeptree_installed = True
-        
 
     #pip dependency tree
     if metadata["image_language"] == "python":
@@ -121,10 +124,14 @@ def harvest():
 
         if not pipdeptree_installed:
             index = 0
-            while index <= len(deptree):
-                if deptree[index][0] == "pipdeptree":
-                    #pipdeptree is installed by harvester, remove it from dependency
-                    del deptree[index]
+            while index < len(deptree):
+                try:
+                    if deptree[index][0] == "pipdeptree":
+                        #pipdeptree is installed by harvester, remove it from dependency
+                        del deptree[index]
+                        break
+                finally:
+                    index += 1
 
         metadata["image_python_dependent_tree"] = deptree
 
