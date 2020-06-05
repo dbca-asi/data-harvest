@@ -21,7 +21,6 @@ COPY *.py ./
 COPY resource_tracking ./resource_tracking
 COPY db ./db
 COPY utils ./utils
-COPY storage ./storage
 
 # Run the application as the www-data user.
 USER www-data

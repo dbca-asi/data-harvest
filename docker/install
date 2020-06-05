@@ -1,0 +1,28 @@
+#!/bin/bash
+
+echo "This command  will install a docker wrapper to harvest docker image metadata and push to azure blob storge right after docker image building process"
+
+dockercmd=$(which docker)
+if [[ "$dockercmd" == "/usr/local/sbin/docker" ]]; then
+    echo "Already installed"
+    exit 0
+fi
+moduledir=$(realpath $(dirname $0))
+workdir=$(dirname $moduledir)
+cp -f $moduledir/docker.tpl $moduledir/docker
+sed -i "s#__WORKDIR__#${workdir}#g" $moduledir/docker
+if [[ $? -ne 0 ]]; then
+    echo 'install docker wrapper failed'
+    exit 1
+fi
+sed -i "s#__DOCKER__#${dockercmd}#g" $moduledir/docker
+if [[ $? -ne 0 ]]; then
+    echo 'install docker wrapper failed'
+    exit 1
+fi
+chmod 555 $moduledir/docker
+
+mv $moduledir/docker /usr/local/sbin/docker
+
+echo "docker wrapper is installed to /usr/local/sbin"
+
