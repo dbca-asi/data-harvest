@@ -24,12 +24,28 @@ def harvest():
     with open("/image_metadata.json",'r') as f:
         metadata = json.loads(f.read())
 
+    installed_by_harvester = set()
+    for name,lib in (("pipdeptree","pipdeptree"),("distro","distro==1.5.0")):
+        if not is_installed(name,metadata.get("image_pip","pip")):
+            try:
+                subprocess.check_call("{} install {}".format(metadata.get("image_pip","pip"),lib),shell=True)
+            except :
+                trackback.print_exc()
+
+            if not is_installed(name,metadata.get("image_pip","pip")):
+                raise Exception("Install library({}) failed".format(name))
+
+            print("The library({}) is installed by harvester".format(name))
+            installed_by_harvester.add(name)
+
+    import distro
+
     #get os information
     metadata["image_platform"] = sys.platform
     os_release_name = None
     os_version = None
     os_name = None
-    os_dist = platform.linux_distribution()
+    os_dist = distro.linux_distribution(full_distribution_name=True)
     if len(os_dist) >= 3:
         os_release_name = os_dist[2]
 
@@ -47,16 +63,6 @@ def harvest():
         metadata["image_language_major_version"] = sys.version_info[0]
         metadata["image_language_version"] = "{}.{}.{}".format(*sys.version_info[0:3])
     
-    if not is_installed("pipdeptree"):
-        try:
-            subprocess.check_call("{} install pipdeptree".format(metadata.get("image_pip","pip")),shell=True)
-        except :
-            trackback.print_exc()
-            
-        pipdeptree_installed = False
-    else:
-        pipdeptree_installed = True
-
     #pip dependency tree
     if metadata["image_language"] == "python":
         dependency_data = subprocess.check_output("pipdeptree",shell=True).decode()
@@ -122,16 +128,15 @@ def harvest():
                     level_stack[-1][1][3].append(lib_dep_subtree)
                 level_stack.append((dep_level,lib_dep_subtree))
 
-        if not pipdeptree_installed:
-            index = 0
-            while index < len(deptree):
+        if not installed_by_harvester:
+            index = len(deptree) - 1
+            while index >= 0:
                 try:
-                    if deptree[index][0] == "pipdeptree":
+                    if deptree[index][0] in installed_by_harvester:
                         #pipdeptree is installed by harvester, remove it from dependency
                         del deptree[index]
-                        break
                 finally:
-                    index += 1
+                    index -= 1
 
         metadata["image_python_dependent_tree"] = deptree
 
