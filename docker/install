@@ -10,6 +10,10 @@ fi
 moduledir=$(realpath $(dirname $0))
 workdir=$(dirname $moduledir)
 cp -f $moduledir/docker.tpl $moduledir/docker
+if [[ $? -ne 0 ]]; then
+    echo 'install docker wrapper failed'
+    exit 1
+fi
 sed -i "s#__WORKDIR__#${workdir}#g" $moduledir/docker
 if [[ $? -ne 0 ]]; then
     echo 'install docker wrapper failed'
@@ -21,8 +25,16 @@ if [[ $? -ne 0 ]]; then
     exit 1
 fi
 chmod 555 $moduledir/docker
+if [[ $? -ne 0 ]]; then
+    echo 'install docker wrapper failed'
+    exit 1
+fi
 
 mv $moduledir/docker /usr/local/sbin/docker
+if [[ $? -ne 0 ]]; then
+    echo 'install docker wrapper failed'
+    exit 1
+fi
 
 echo "docker wrapper is installed to /usr/local/sbin"
 
