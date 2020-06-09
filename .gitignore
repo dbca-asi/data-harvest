@@ -13,3 +13,5 @@ test/
 *.db
 *.sqlite3
 .coverage
+build_image.sh
+build_image

@@ -59,12 +59,12 @@ def harvest():
     metadata["image_os_version"] = os_version
     metadata["image_os_release_name"] = os_release_name
 
-    if metadata.get("image_language") == "python":
-        metadata["image_language_major_version"] = sys.version_info[0]
-        metadata["image_language_version"] = "{}.{}.{}".format(*sys.version_info[0:3])
+    if metadata.get("app_language") == "python":
+        metadata["app_language_major_version"] = sys.version_info[0]
+        metadata["app_language_version"] = "{}.{}.{}".format(*sys.version_info[0:3])
     
     #pip dependency tree
-    if metadata["image_language"] == "python":
+    if metadata["app_language"] == "python":
         dependency_data = subprocess.check_output("pipdeptree",shell=True).decode()
         dependency_lines = dependency_data.split(os.linesep)
         deptree = []

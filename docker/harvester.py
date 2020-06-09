@@ -169,8 +169,8 @@ def prebuild(workdir,buildpath,dockerfile):
                         if s_line.startswith("FROM"):
                             #declare the base image, parse the base image name,account and version
                             baseimage_account = None
-                            baseimage_name = None
-                            baseimage_version = None
+                            baseimage_repository = None
+                            baseimage_tag = None
                             datas = line.strip().split()
                             if "/" in datas[1]:
                                 baseimage_account,baseimage = datas[1].split("/",1)
@@ -178,19 +178,19 @@ def prebuild(workdir,buildpath,dockerfile):
                                 baseimage_account = None
                                 baseimage = datas[1]
                             if ":" in baseimage:
-                                baseimage_name,baseimage_version = baseimage.split(":",1)
+                                baseimage_repository,baseimage_tag = baseimage.split(":",1)
                             else:
-                                baseimage_name = baseimage
-                                baseimage_version = None
+                                baseimage_repository = baseimage
+                                baseimage_tag = None
                             image_metadata["baseimage_account"] = baseimage_account
-                            image_metadata["baseimage_name"] = baseimage_name
-                            image_metadata["baseimage_version"] = baseimage_version
+                            image_metadata["baseimage_repository"] = baseimage_repository
+                            image_metadata["baseimage_tag"] = baseimage_tag
                             wf.write(line)
                         else:
                             raise Exception("Mssing the baseimage declaration.")
                     else:
                         if s_line.startswith("HEALTHCHECK"):
-                            image_metadata["image_healthcheck"] = line.strip().split(maxsplit=1)[1]
+                            image_metadata["app_healthcheck"] = line.strip().split(maxsplit=1)[1]
                             wf.write(line)
                         elif s_line.startswith("WORKDIR"):
                             image_metadata["image_workdir"] = line.strip().split(maxsplit=1)[1]
@@ -216,7 +216,7 @@ def prebuild(workdir,buildpath,dockerfile):
                             wf.write(line)
                             m = pip_install_re.search(line)
                             if m:
-                                image_metadata["image_language"] = "python"
+                                image_metadata["app_language"] = "python"
                                 image_metadata["image_pip"] = m.group("pip")
                                 if user_found:
                                     raise Exception("Please move the statement 'USER' under statement '{}' ".format(line))
@@ -226,7 +226,7 @@ def prebuild(workdir,buildpath,dockerfile):
                             if not image_python:
                                 m = python_run_re.search(line)
                                 if m:
-                                    image_metadata["image_language"] = "python"
+                                    image_metadata["app_language"] = "python"
                                     image_python = m.group("python")
                                     if user_found:
                                         raise Exception("Please move the statement 'USER' under statement '{}' ".format(line))
@@ -241,9 +241,9 @@ def prebuild(workdir,buildpath,dockerfile):
 
     if "image_expose_port" in image_metadata:
         #export a port,think it is a web project
-        image_metadata["image_app_type"] = "webapp"
+        image_metadata["app_type"] = "webapp"
     else:
-        image_metadata["image_app_type"] = "app"
+        image_metadata["app_type"] = "app"
 
     if "image_cmd" in image_metadata:
         if isinstance(image_metadata["image_cmd"],str):
@@ -290,21 +290,21 @@ def prebuild(workdir,buildpath,dockerfile):
         cmd_args = image_metadata["image_cmd"][1:]
         config_file_option = None
         if s_cmd == "gunicorn":
-            image_metadata["image_type"] = "webapp"
-            image_metadata["image_language"] = "python"
-            image_metadata["image_server"] = "gunicorn"
+            image_metadata["app_type"] = "webapp"
+            image_metadata["app_language"] = "python"
+            image_metadata["app_server"] = "gunicorn"
             config_file_option = ("-c","--config")
         elif s_cmd == "uwsgi":
-            image_metadata["image_type"] = "webapp"
-            image_metadata["image_language"] = "python"
-            image_metadata["image_server"] = "uwsgi"
+            image_metadata["app_type"] = "webapp"
+            image_metadata["app_language"] = "python"
+            image_metadata["app_server"] = "uwsgi"
             config_file_option = ("-i","--ini")
         elif s_cmd.startswith("python"):
-            image_metadata["image_language"] = "python"
+            image_metadata["app_language"] = "python"
             if get_option(cmd_args,'runserver'):
-                image_metadata["image_type"] = "webapp"
+                image_metadata["app_type"] = "webapp"
             else:
-                image_metadata["image_type"] = "app"
+                image_metadata["app_type"] = "app"
 
         if config_file_option:
             config_file = get_option(cmd_args,config_file_option)
@@ -313,7 +313,7 @@ def prebuild(workdir,buildpath,dockerfile):
                     config_txt = f.read()
             else:
                 config_txt = None
-            image_metadata["image_server_config"] = config_txt
+            image_metadata["app_server_config"] = config_txt
     
     with open(image_metadata_file,"w") as f:
         f.write(json.dumps(image_metadata,cls=JSONEncoder,indent=4))
