@@ -67,8 +67,7 @@ def archive(storage,files=None,folder=None,recursive=False,file_filter=None,rese
                             archive_files.append((f_path,os.path.relpath(f_path,folder)))
                         else:
                             archive_files.append((f_path,os.path.split(f_path)[1]))
-
-                elif os.path.isdir(f):
+                elif os.path.isdir(f_path):
                     if recursive:
                         folders.append(f_path)
                     else:
