@@ -86,7 +86,7 @@ def archive(storage,files=None,folder=None,recursive=False,file_filter=None,rese
     file_modify_date = None
     file_size = None
     file_md5 = None
-    check_file_md5 = FILE_MD5 in checking_policy
+    check_md5 = FILE_MD5 in checking_policy
     for f,resource_id in archive_files:
         file_status = os.stat(f)
         file_modify_date = file_status.st_mtime_ns

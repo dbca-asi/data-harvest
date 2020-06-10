@@ -14,7 +14,7 @@ def get_blob_resource():
     global _blob_resource
     if _blob_resource is None:
         _blob_resource = AzureBlobResource(
-            settings.NGINX_RESOURCE_NAME,
+            settings.RESOURCE_NAME,
             settings.AZURE_CONNECTION_STRING,
             settings.AZURE_CONTAINER,
             archive=False
@@ -32,4 +32,4 @@ def need_archive(path):
 
 
 def archive():
-    files.archive(get_blob_resource(),folder=settings.NGINX_ARCHIVE_FOLDER,recursive=True,reserve_folder=settings.RESERVE_FOLDER,archive=False,file_filter=need_archive)
+    files.archive(get_blob_resource(),folder=settings.ARCHIVE_FOLDER,recursive=True,reserve_folder=settings.RESERVE_FOLDER,archive=False,file_filter=need_archive)
