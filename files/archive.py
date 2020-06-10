@@ -10,7 +10,11 @@ import utils
 
 logger = logging.getLogger(__name__)
 
-def archive(storage,files=None,folder=None,recursive=False,file_filter=None,reserve_folder=True,archive=True):
+FILE_MD5 = 1
+FILE_MODIFY_DATE = 2
+FILE_SIZE = 3
+
+def archive(storage,files=None,folder=None,recursive=False,file_filter=None,reserve_folder=True,archive=True,checking_policy=[FILE_MD5]):
     """
     Archive the files or files in folder and push it to azure blob resource
     files: the file or list of files for archive
@@ -19,6 +23,7 @@ def archive(storage,files=None,folder=None,recursive=False,file_filter=None,rese
     file_filter: only used for folder, if not none, only the files which satisfy the filter will be archived
     reserve_folder: only used for folder, if true, the relative folder in folder will be reserved when push to blob storage
     archive: if true, each file version will be saved in blob storage 
+    checking_policy: the policy to check whether file is modified or not. can be single policy or list of policy
     """
 
     if not files and not folder:
@@ -26,6 +31,11 @@ def archive(storage,files=None,folder=None,recursive=False,file_filter=None,rese
 
     if files and folder:
         raise Exception("Can't set files or folder at the same time ")
+
+    if not checking_policy:
+        checking_policy = [FILE_MD5]
+    elif not isinstance(checking_policy,(list,tuple)):
+        checking_policy = [checking_policy]
  
     archive_files = None
     if files:
@@ -72,22 +82,53 @@ def archive(storage,files=None,folder=None,recursive=False,file_filter=None,rese
     metadata = None
 
     #push the updated or new files into storage
+    file_status = None
+    file_modify_date = None
+    file_size = None
+    file_md5 = None
+    check_file_md5 = FILE_MD5 in checking_policy
     for f,resource_id in archive_files:
+        file_status = os.stat(f)
+        file_modify_date = file_status.st_mtime_ns
+        file_size = file_status.st_size
+        if check_md5:
+            file_md5 = utils.file_md5(f)
+        else:
+            file_md5 = None
+
         metadata = {}
         try:
             res_metadata = storage.get_resource_metadata(resource_id)
         except ResourceNotFound as ex:
             res_metadata = None
 
-        file_md5 = utils.file_md5(f)
-        if res_metadata and res_metadata["file_md5"] == file_md5:
+        is_changed = False
+        for policy in checking_policy:
+            if policy == FILE_MD5:
+                if not res_metadata or res_metadata.get("file_md5") != file_md5:
+                    is_changed = True
+                    break
+            elif policy == FILE_MODIFY_DATE:
+                if not res_metadata or res_metadata.get("file_modify_date") != file_modify_date:
+                    is_changed = True
+                    break
+            elif policy == FILE_SIZE:
+                if not res_metadata or res_metadata.get("file_msize") != file_size:
+                    is_changed = True
+                    break
+            else:
+                raise Exception("Checking policy({}) Not Support".format(policy))
+
+        if not is_changed:
             logger.debug("File({},{}) is not changed, no need to archive again".format(f,resource_id))
             continue
 
-
         metadata["archive_time"] = timezone.now()
         metadata["resource_id"] = resource_id
-        metadata["file_md5"] = file_md5
+        metadata["file_modify_date"] = file_modify_date
+        metadata["file_size"] = file_size
+        if check_md5:
+            metadata["file_md5"] = file_md5
         if folder:
             metadata["folder"] = folder
 
