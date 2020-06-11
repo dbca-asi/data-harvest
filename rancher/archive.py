@@ -26,13 +26,8 @@ def need_archive(path):
     file_folder,file_name = os.path.split(path)
     if file_name[0] == ".":
         return False
-    elif file_name.endswith(".yaml"):
-        return True
-    elif file_name.endswith(".yml"):
-        return True
-
-    return False
-
+    else:
+        return settings.FILE_RE.search(file_name)
 
 def archive():
     files.archive(get_blob_resource(),folder=settings.ARCHIVE_FOLDER,recursive=True,reserve_folder=settings.RESERVE_FOLDER,archive=False,file_filter=need_archive)
