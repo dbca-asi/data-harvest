@@ -102,9 +102,6 @@ def archive(storage,files=None,folder=None,recursive=False,file_filter=None,rese
     else:
         non_exist_resourceids = set()
         for meta in storage.resource_metadatas(throw_exception=False,resource_file="current"):
-            if meta["folder"] != folder:
-                #not belong to the same folder, ignore 
-                continue
             non_exist_resourceids.add(meta["resource_id"])
 
         folder = os.path.abspath(folder)
