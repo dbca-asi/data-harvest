@@ -18,7 +18,8 @@ def get_blob_resource():
             settings.AZURE_CONNECTION_STRING,
             settings.AZURE_CONTAINER,
             archive=False,
-            resource_base_path="{}/{}".format(settings.RESOURCE_NAME,settings.RANCHER_CLUSTER)
+            resource_base_path="{}/{}".format(settings.RESOURCE_NAME,settings.RANCHER_CLUSTER),
+            logical_delete=True
         )
     return _blob_resource
 
