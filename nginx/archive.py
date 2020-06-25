@@ -7,12 +7,12 @@ from . import settings
 import files
 
 _blob_resource = None
-def get_blob_resource():
+def get_blob_resource(reuse=True):
     """
     Return the blob resource client
     """
     global _blob_resource
-    if _blob_resource is None:
+    if _blob_resource is None or not reuse:
         _blob_resource = AzureBlobResource(
             settings.RESOURCE_NAME,
             settings.AZURE_CONNECTION_STRING,
