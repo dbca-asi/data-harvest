@@ -1,10 +1,15 @@
 import pytz
+import os
 import logging.config
 
 from utils.env import env
 from datetime import datetime
 
 DEBUG = env("DEBUG",False)
+
+
+HOME_DIR = os.path.dirname(os.path.abspath(__file__))
+
 TIME_ZONE = env("TIME_ZONE",'Australia/Perth')
 TZ = datetime.now(tz=pytz.timezone(TIME_ZONE)).tzinfo
 

@@ -18,11 +18,14 @@ RUN pip3 install --no-cache-dir -r requirements.txt
 # Install the project.
 FROM python_libs_rt
 COPY *.py ./
-COPY resource_tracking ./resource_tracking
 COPY db ./db
+COPY files ./files
 COPY utils ./utils
-COPY storage ./storage
+COPY resource_tracking ./resource_tracking
+COPY docker ./docker
+COPY nginx ./nginx
+COPY rancher ./rancher
 
 # Run the application as the www-data user.
-USER www-data
+USER nobody
 CMD ["/bin/bash"]

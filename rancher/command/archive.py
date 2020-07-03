@@ -4,16 +4,16 @@ import sys
 import traceback
 import logging
 
-import nginx
+import rancher
 
 logger = logging.getLogger(__name__)
 
-parser = argparse.ArgumentParser(prog="archive",description='Archive nginx configuration files and push it to blob storage')
+parser = argparse.ArgumentParser(prog="archive",description='Archive rancher configuration files and push it to blob storage')
 
 def run():
     try:
         args = parser.parse_args(sys.argv[2:])
-        nginx.archive()
+        rancher.archive()
     except:
         logger.error(traceback.format_exc())
     
