@@ -8,7 +8,7 @@ from datetime import date,timedelta
 from utils import timezone,gdal
 import utils
 
-from data_storage import AzureBlobIndexedGroupResource
+from data_storage import IndexedGroupResourceRepository,AzureBlobStorage
 from data_storage.exceptions import ResourceAlreadyExist
 
 from . import settings
@@ -70,10 +70,9 @@ def get_blob_resource():
     """
     global _blob_resource
     if _blob_resource is None:
-        _blob_resource = AzureBlobIndexedGroupResource(
+        _blob_resource = IndexedGroupResourceRepository(
+            AzureBlobStorage(settings.AZURE_CONNECTION_STRING,settings.AZURE_CONTAINER),
             settings.LOGGEDPOINT_RESOURCE_NAME,
-            settings.AZURE_CONNECTION_STRING,
-            settings.AZURE_CONTAINER,
             get_metaname,
             archive=False,
             index_metaname=index_metaname
@@ -446,7 +445,7 @@ def delete_all():
         return
 
     blob_resource = get_blob_resource()
-    blob_resource.delete_resource(throw_exception=False)
+    blob_resource.delete_resources(throw_exception=False)
 
 def delete_archive_by_month(year,month):
     """
@@ -461,7 +460,7 @@ def delete_archive_by_month(year,month):
     d = date(year,month,1)
     archive_group = get_archive_group(d)
     blob_resource = get_blob_resource()
-    blob_resource.delete_resource(resource_group=archive_group,throw_exception=False)
+    blob_resource.delete_resources(resource_group=archive_group,throw_exception=False)
 
 def delete_archive_by_date(d):
     """
@@ -481,7 +480,7 @@ def delete_archive_by_date(d):
     work_folder = None
     blob_resource = get_blob_resource()
     try:
-        del_metadata = blob_resource.delete_resource(resource_group=archive_group,resource_id=resource_id)
+        del_metadata = blob_resource.delete_resource(archive_group,resource_id)
         groupmetadatas = [m for m in blob_resource.metadata_client.resource_metadatas(resource_group=archive_group,throw_exception=True)]
 
         vrt_metadata = next(m for m in groupmetadatas if m["resource_id"] == vrt_id)
@@ -506,7 +505,7 @@ def delete_archive_by_date(d):
             resourcemetadata = blob_resource.push_file(vrt_filename,vrt_metadata,f_post_push=_set_end_datetime("updated"))
         else:
             #all archives in the group were deleted
-            blob_resource.delete_resource(resourceid=vrt_id,resource_group=archive_group)
+            blob_resource.delete_resource(archive_group,vrt_id)
     finally:
         utils.remove_folder(work_folder)
         pass

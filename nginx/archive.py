@@ -1,6 +1,6 @@
 import os
 
-from data_storage.azure_blob import AzureBlobResource
+from data_storage import ResourceRepository,AzureBlobStorage
 from data_storage.exceptions import ResourceAlreadyExist
 
 from . import settings
@@ -13,10 +13,9 @@ def get_blob_resource(reuse=True):
     """
     global _blob_resource
     if _blob_resource is None or not reuse:
-        _blob_resource = AzureBlobResource(
+        _blob_resource = ResourceRepository(
+            AzureBlobStorage(settings.AZURE_CONNECTION_STRING,settings.AZURE_CONTAINER),
             settings.RESOURCE_NAME,
-            settings.AZURE_CONNECTION_STRING,
-            settings.AZURE_CONTAINER,
             archive=False
         )
     return _blob_resource
