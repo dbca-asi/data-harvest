@@ -1,9 +1,12 @@
 __version__ = '1.0.0'
 import ast
 import os
+import logging
 
 from dotenv import load_dotenv
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+logger = logging.getLogger(__name__)
 
 env_loaded = False
 if not env_loaded:
@@ -25,7 +28,9 @@ def env(key, default=None, required=False,vtype=None):
     except KeyError:
         if default is not None or not required:
             return default
-        raise Exception("Missing required environment variable '%s'" % key)
+        else:
+            logger.error("Missing required environment variable '%s'" % key)
+            return None
 
     if vtype is None:
         if default is not None:
