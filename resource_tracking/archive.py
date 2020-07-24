@@ -94,22 +94,16 @@ def continuous_archive(delete_after_archive=False,check=False,max_archive_days=N
         return
 
     earliest_date = timezone.nativetime(earliest_date).date()
-    now = timezone.now()
-    today = now.date()
-    if settings.END_WORKING_HOUR is not None and now.hour <= settings.END_WORKING_HOUR:
-        if settings.START_WORKING_HOUR is None or now.hour >= settings.START_WORKING_HOUR:
-            raise Exception("Please don't run continuous archive in working hour")
-
-    if settings.START_WORKING_HOUR is not None and now.hour >= settings.START_WORKING_HOUR:
-        if settings.END_WORKING_HOUR is None or now.hour <= settings.END_WORKING_HOUR:
-            raise Exception("Please don't run continuous archive in working hour")
-
+    if timezone.in_working_hour():
+        logger.error("Please don't run continuous archive in working hour")
+        return 
+    today = timezone.now().date()
     last_archive_date = today - timedelta(days=settings.LOGGEDPOINT_ACTIVE_DAYS)
     archive_date = earliest_date
     archived_days = 0
     max_archive_days = max_archive_days if max_archive_days and  max_archive_days > 0 else None
 
-    logger.info("Begin to continuous archiving loggedpoint, earliest archive date={0},last archive date = {1}, delete_after_archive={2}, check={3}, max_archive_days={4}".format(
+    logger.info("Begin to continuous archive loggedpoint, earliest archive date={0},last archive date = {1}, delete_after_archive={2}, check={3}, max_archive_days={4}".format(
         earliest_date,last_archive_date,delete_after_archive,check,max_archive_days
     ))
     if archive_date >= last_archive_date:
@@ -117,16 +111,9 @@ def continuous_archive(delete_after_archive=False,check=False,max_archive_days=N
         return
 
     while archive_date < last_archive_date and (not max_archive_days or archived_days < max_archive_days):
-        now = timezone.now()
-        if settings.END_WORKING_HOUR is not None and now.hour <= settings.END_WORKING_HOUR:
-            if settings.START_WORKING_HOUR is None or now.hour >= settings.START_WORKING_HOUR:
-                logger.info("Stop archiving in working hour")
-                break
-
-        if settings.START_WORKING_HOUR is not None and now.hour >= settings.START_WORKING_HOUR:
-            if settings.END_WORKING_HOUR is None or now.hour <= settings.END_WORKING_HOUR:
-                logger.info("Stop archiving in working hour")
-                break
+        if timezone.in_working_hour():
+            logger.info("Stop archiving in working hour")
+            break
 
         archive_by_date(archive_date,delete_after_archive=delete_after_archive,check=check,overwrite=overwrite,backup_to_archive_table=backup_to_archive_table)
         archive_date += timedelta(days=1)
@@ -202,8 +189,6 @@ def archive(archive_group,archive_id,start_date,end_date,delete_after_archive=Fa
     filename = None
     vrt_filename = None
     work_folder = tempfile.mkdtemp(prefix="archive_loggedpoint")
-    def set_end_archive(metadata):
-        metadata["end_archive"] = timezone.now()
     resourcemetadata = None
     try:
         logger.info("Begin to archive loggedpoint, archive_group={},archive_id={},start_date={},end_date={}".format(archive_group,archive_id,start_date,end_date))
