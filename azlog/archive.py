@@ -17,7 +17,12 @@ from . import settings
 logger = logging.getLogger(__name__)
 
 index_metaname = "{}_index".format(settings.RESOURCE_NAME.lower())
-get_metaname = lambda resource_group:"{}_{}".format(settings.RESOURCE_NAME.lower(),resource_group.split("-")[0])
+
+def get_metaname_func():
+    resource_name = settings.RESOURCE_NAME.lower()
+    return lambda resource_group:"{}_{}".format(resource_name,resource_group.rsplit("-",1)[0])
+get_metaname = get_metaname_func()
+
 
 #function to get the archive group name from archive date
 get_resource_group = lambda d:d.strftime("%Y-%m-%d")
