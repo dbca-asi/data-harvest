@@ -41,7 +41,8 @@ def get_resource_repository():
             LocalStorage(settings.LOCAL_STORAGE_DIR),
             settings.RESOURCE_NAME,
             get_metaname,
-            index_metaname=index_metaname
+            index_metaname=index_metaname,
+            max_saved_consumed_resources=settings.MAX_SAVED_CONSUMED_RESOURCES
         )
     return _resource_repository
 
@@ -81,6 +82,8 @@ def archive(max_archive_times=settings.MAX_ARCHIVE_TIMES_PER_RUN):
             break
         archived_times += 1
 
+
+
 def _set_end_datetime(key):
     def _func(metadata):
         metadata[key] = timezone.now()
@@ -96,6 +99,7 @@ def _archive():
         logger.info("All az logs have been archived.the end time of the last archiving is {}".format(query_start))
         return False
 
+    logger.info("Archive az logs between {} and {}".format(query_start,query_end))
     resource_group = get_resource_group(query_start)
     resource_id = get_resource_id(query_start)
     metadata = {
@@ -116,8 +120,8 @@ def _archive():
             settings.PASSWORD,
             settings.WORKSPACE,
             settings.QUERY,
-            timezone.utctime(query_start).strftime("%y-%m-%dT%H:%M:%SZ"),
-            timezone.utctime(query_end).strftime("%y-%m-%dT%H:%M:%SZ"),
+            timezone.utctime(query_start).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            timezone.utctime(query_end).strftime("%Y-%m-%dT%H:%M:%SZ"),
             dump_file
         )
         subprocess.check_output(cmd,shell=True)
@@ -126,6 +130,17 @@ def _archive():
             with open(dump_file,'r') as f:
                 data = json.loads(f.read())
         resourcemetadata = get_resource_repository().push_file(dump_file,metadata,f_post_push=_set_end_datetime("end_archive"))
+
+        if settings.MAX_ARCHIVED_RESOURCES > 0:
+            repo_metadata = get_resource_repository().metadata_client.json
+            if repo_metadata and len(repo_metadata) > settings.MAX_SAVED_RESORCES:
+                logger.info("azlogs are achived {} times, but the configured maximum archive files in respository is ({}),delete the earliest archivement".format(len(repo_metadata),settins.MAX_ARCHIVED_RESOURCES))
+                index = 0
+                while index < len(repo_metadata) - settings.MAX_ARCHIVED_RESOURCES:
+                    metadata = repo_metadata[index]
+                    resource_id = [metadata[key] for key in get_resource_repository().metadata_client.resource_keys]
+                    get_resource_repository().delete_resource(*resource_id)
+                    index += 1
 
         return True
     finally:
