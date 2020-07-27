@@ -41,8 +41,7 @@ def get_resource_repository():
             LocalStorage(settings.LOCAL_STORAGE_DIR),
             settings.RESOURCE_NAME,
             get_metaname,
-            index_metaname=index_metaname,
-            max_saved_consumed_resources=settings.MAX_SAVED_CONSUMED_RESOURCES
+            index_metaname=index_metaname
         )
     return _resource_repository
 
@@ -126,14 +125,14 @@ def _archive():
         )
         subprocess.check_output(cmd,shell=True)
 
-        if settings.CHECK_DUMP_FILE:
-            with open(dump_file,'r') as f:
-                data = json.loads(f.read())
+        with open(dump_file,'r') as f:
+            data = json.loads(f.read())
+            metadata["log_records"] = len(data)
         resourcemetadata = get_resource_repository().push_file(dump_file,metadata,f_post_push=_set_end_datetime("end_archive"))
 
         if settings.MAX_ARCHIVED_RESOURCES > 0:
             repo_metadata = get_resource_repository().metadata_client.json
-            if repo_metadata and len(repo_metadata) > settings.MAX_SAVED_RESORCES:
+            if repo_metadata and len(repo_metadata) > settings.MAX_ARCHIVED_RESOURCES:
                 logger.info("azlogs are achived {} times, but the configured maximum archive files in respository is ({}),delete the earliest archivement".format(len(repo_metadata),settins.MAX_ARCHIVED_RESOURCES))
                 index = 0
                 while index < len(repo_metadata) - settings.MAX_ARCHIVED_RESOURCES:
