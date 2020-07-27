@@ -8,6 +8,10 @@ RUN apt-get update -y \
   && rm -rf /var/lib/apt/lists/* \
   && pip3 install --upgrade pip
 
+
+RUN curl -sL https://aka.ms/InstallAzureCLIDeb | bash
+RUN az extension add --name log-analytics
+
 RUN ln -s /usr/bin/python3 /usr/bin/python
 # Install Python libs from requirements.txt.
 FROM builder_base_rt as python_libs_rt
@@ -25,6 +29,7 @@ COPY resource_tracking ./resource_tracking
 COPY docker ./docker
 COPY nginx ./nginx
 COPY rancher ./rancher
+COPY azlog ./azlog
 
 # Run the application as the www-data user.
 USER nobody
