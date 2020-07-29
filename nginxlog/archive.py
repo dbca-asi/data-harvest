@@ -17,10 +17,14 @@ def get_earliest_metaname(resource_id):
     d = datetime.strptime(resource_id[0],"%Y-%m-%d")
     d = d.replace(year=d.year - diff_years,day=1)
     earliest_month = d.month - diff_months
-    if earliest > 0:
+    if earliest_month > 0:
         d = d.replace(month=earliest_month)
     else:
         d = d.replace(year=d.year - 1,month=12 + earliest_month)
+
+    earliest_group = NginxLogArchive.get_instance().get_resource_group(d)
+
+    return get_metaname(earliest_group)
 
 class NginxLogArchive(azlog.Archive):
     #function to get the archive group name from archive date
