@@ -24,8 +24,10 @@ def get_earliest_metaname(resource_id):
 
 class NginxLogArchive(azlog.Archive):
     #function to get the archive group name from archive date
-    get_resource_group = lambda d:d.strftime("%Y-%m-%d")
-    
+ 
+    def get_resource_group(self,d):
+        return d.strftime("%Y-%m-%d")
+
 
     def create_resource_repository(self):
         return IndexedGroupHistoryDataRepository(
@@ -37,5 +39,4 @@ class NginxLogArchive(azlog.Archive):
         )
 
     def set_metadata(self,metadata):
-        resource_group = get_resource_group(query_start)
-        metadata["resource_group"] = get_resource_group(metadata[self.ARCHIVE_STARTTIME])
+        metadata["resource_group"] = self.get_resource_group(metadata[self.ARCHIVE_STARTTIME])

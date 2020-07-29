@@ -1,1 +1,1 @@
-from archive import NginxLogArchive
+from .archive import NginxLogArchive

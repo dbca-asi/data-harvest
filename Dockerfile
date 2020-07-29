@@ -30,6 +30,7 @@ COPY docker ./docker
 COPY nginx ./nginx
 COPY rancher ./rancher
 COPY azlog ./azlog
+COPY nginxlog ./nginxlog
 
 # Run the application as the www-data user.
 USER nobody

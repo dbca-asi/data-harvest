@@ -26,9 +26,7 @@ class Archive(object):
 
     index_metaname = "{}_index".format(settings.RESOURCE_NAME.lower())
 
-    #function to get the archive id from date from archive date
     resource_id_pattern = "{}_%Y-%m-%dT%H-%M-%S.json".format(settings.RESOURCE_NAME.lower())
-    get_resource_id= lambda d:d.strftime(resource_id_pattern)
 
     _resource_repository = None
 
@@ -41,6 +39,8 @@ class Archive(object):
 
         return cls._instance
 
+    def get_resource_id(self,d):
+        return d.strftime(self.resource_id_pattern)
 
     @property
     def resource_repository(self):
@@ -48,7 +48,7 @@ class Archive(object):
         Return the blob resource client
         """
         if self._resource_repository is None:
-            _resource_repository = self.create_resource_repository()
+            self._resource_repository = self.create_resource_repository()
         return self._resource_repository
 
     def create_resource_repository(self):
@@ -82,7 +82,7 @@ class Archive(object):
         """
         acquire_runlock(settings.PROCESS_LOCKFILE)
         logger.info("Begin to continuous archive az logs, max_archive_times={}".format(max_archive_times))
-        archived_files = 0
+        archived_times = 0
         while max_archive_times is None or archived_times < max_archive_times:
             if not self._archive():
                 break
