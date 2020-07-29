@@ -4,7 +4,7 @@ import sys
 import traceback
 import logging
 
-import azlog
+from nginxlog import NginxLogArchive
 
 logger = logging.getLogger(__name__)
 
@@ -15,9 +15,9 @@ def run():
     try:
         args = parser.parse_args(sys.argv[2:])
         if args.max_archive_times:
-            azlog.archive(args.max_archive_times)
+            NginxLogArchive.get_instance().archive(args.max_archive_times)
         else:
-            azlog.archive()
+            NginxLogArchive.get_instance().archive()
     except:
         logger.error(traceback.format_exc())
 

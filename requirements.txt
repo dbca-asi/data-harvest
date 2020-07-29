@@ -1,5 +1,5 @@
 python-dotenv==0.10.3
 pytz==2019.3
 distro==1.5.0
-git+git://github.com/dbca-wa/data-storage@v3.1#egg=data-storage==3.1
+git+git://github.com/dbca-wa/data-storage@v3.2#egg=data-storage==3.2
 psycopg2==2.8.4

@@ -16,7 +16,6 @@ QUERY_START = env("AZLOG_QUERY_START",vtype=datetime,required=True)# configure i
 USER =  env("AZLOG_USER",vtype=str,required=True)
 PASSWORD =  env("AZLOG_PASSWORD",vtype=str,required=True)
 
-MAX_ARCHIVED_RESOURCES = env("MAX_ARCHIVED_RESOURCES",vtype=int)
 MAX_ARCHIVE_TIMES_PER_RUN = env("MAX_ARCHIVE_TIMES_PER_RUN",vtype=int)
 
 PROCESS_LOCKFILE = os.path.join(LOCAL_STORAGE_DIR,".azlog_{}.lock".format(RESOURCE_NAME.lower()))

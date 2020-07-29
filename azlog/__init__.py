@@ -1,1 +1,1 @@
-from .archive import archive
+from .archive import Archive
