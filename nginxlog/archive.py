@@ -5,10 +5,8 @@ from data_storage import IndexedGroupHistoryDataRepository,LocalStorage
 import azlog
 from . import settings
 
-def get_metaname_func():
-    resource_name = settings.RESOURCE_NAME.lower()
-    return lambda resource_group:"{}_{}".format(resource_name,resource_group.rsplit("-",1)[0])
-get_metaname = get_metaname_func()
+get_metaname = """lambda resource_group:"metadata_{}".format(resource_group.rsplit("-",1)[0])"""
+exec("f_get_metaname={}".format(get_metaname))
 
 def get_earliest_metaname(resource_id):
     diff_months = settings.ARCHIVE_LIFESPAN % 12
@@ -22,9 +20,9 @@ def get_earliest_metaname(resource_id):
     else:
         d = d.replace(year=d.year - 1,month=12 + earliest_month)
 
-    earliest_group = NginxLogArchive.get_instance().get_resource_group(d)
+    earliest_group = NginxLogArchive.get_instance(settings).get_resource_group(d)
 
-    return get_metaname(earliest_group)
+    return f_get_metaname(earliest_group)
 
 class NginxLogArchive(azlog.Archive):
     #function to get the archive group name from archive date

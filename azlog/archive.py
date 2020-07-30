@@ -74,12 +74,15 @@ class Archive(object):
             return (query_start,query_end)
 
 
-    def archive(self,max_archive_times=self.settings.MAX_ARCHIVE_TIMES_PER_RUN):
+    def archive(self,max_archive_times=False):
         """
         Continuous archiving the az log.
-        max_archive_times: the maxmium times to arhive
+        max_archive_times: the maxmium times to arhive, can be None or positive numbers
         Return the number of archived files
         """
+        if max_archive_times is False or max_archive_times <= 0:
+            max_archive_times = self.settings.MAX_ARCHIVE_TIMES_PER_RUN
+
         acquire_runlock(self.settings.PROCESS_LOCKFILE)
         logger.info("Begin to continuous archive az logs, max_archive_times={}".format(max_archive_times))
         archived_times = 0
