@@ -62,7 +62,7 @@ get_backup_table= lambda d:"tracking_loggedpoint_{}".format(d.strftime('%Y'))
 
 index_metaname = "loggedpoint_index"
 
-get_metaname = lambda archive_group:"loggedpoint{}".format(archive_group.split("-")[0])
+get_metaname = """lambda archive_group:"loggedpoint{}".format(archive_group.split("-")[0])"""
 _blob_resource = None
 def get_blob_resource():
     """

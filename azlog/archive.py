@@ -11,8 +11,6 @@ from utils import timezone,remove_file,acquire_runlock
 
 from data_storage.exceptions import ResourceAlreadyExist
 
-from . import settings
-
 logger = logging.getLogger(__name__)
 
 def _set_end_datetime(key):
@@ -24,20 +22,22 @@ class Archive(object):
     ARCHIVE_STARTTIME="archive_starttime"
     ARCHIVE_ENDTIME="archive_endtime"
 
-    index_metaname = "{}_index".format(settings.RESOURCE_NAME.lower())
-
-    resource_id_pattern = "{}_%Y-%m-%dT%H-%M-%S.json".format(settings.RESOURCE_NAME.lower())
+    index_metaname = "metadata_index"
 
     _resource_repository = None
 
-    _instance = None
+    _instances = {}
+
+    def __init__(self,settings):
+        self.settings = settings
+        self.resource_id_pattern = "{}_%Y-%m-%dT%H-%M-%S.json".format(self.settings.RESOURCE_NAME.lower())
 
     @classmethod
-    def get_instance(cls):
-        if not cls._instance:
-            cls._instance = cls()
+    def get_instance(cls,settings):
+        if settings not in cls._instances:
+            cls._instances[settings] = cls(settings)
 
-        return cls._instance
+        return cls._instances[settings]
 
     def get_resource_id(self,d):
         return d.strftime(self.resource_id_pattern)
@@ -64,9 +64,9 @@ class Archive(object):
         if last_resource:
             query_start = last_resource[1][self.ARCHIVE_ENDTIME]
         else:
-            query_start = settings.QUERY_START
+            query_start = self.settings.QUERY_START
         
-        query_end = query_start + settings.QUERY_DURATION
+        query_end = query_start + self.settings.QUERY_DURATION
         
         if query_end > timezone.now():
             return (query_start,None)
@@ -74,13 +74,13 @@ class Archive(object):
             return (query_start,query_end)
 
 
-    def archive(self,max_archive_times=settings.MAX_ARCHIVE_TIMES_PER_RUN):
+    def archive(self,max_archive_times=self.settings.MAX_ARCHIVE_TIMES_PER_RUN):
         """
         Continuous archiving the az log.
         max_archive_times: the maxmium times to arhive
         Return the number of archived files
         """
-        acquire_runlock(settings.PROCESS_LOCKFILE)
+        acquire_runlock(self.settings.PROCESS_LOCKFILE)
         logger.info("Begin to continuous archive az logs, max_archive_times={}".format(max_archive_times))
         archived_times = 0
         while max_archive_times is None or archived_times < max_archive_times:
@@ -118,14 +118,14 @@ class Archive(object):
     
         try:
             dump_file = None
-            with tempfile.NamedTemporaryFile(suffix=".json",prefix=settings.RESOURCE_NAME,delete=False) as f:
+            with tempfile.NamedTemporaryFile(suffix=".json",prefix=self.settings.RESOURCE_NAME,delete=False) as f:
                 dump_file = f.name
             
             cmd = "az login -u {} -p {}&&az monitor log-analytics query -w {} --analytics-query '{}' -t {}/{} > {}".format(
-                settings.USER,
-                settings.PASSWORD,
-                settings.WORKSPACE,
-                settings.QUERY,
+                self.settings.USER,
+                self.settings.PASSWORD,
+                self.settings.WORKSPACE,
+                self.settings.QUERY,
                 timezone.utctime(query_start).strftime("%Y-%m-%dT%H:%M:%SZ"),
                 timezone.utctime(query_end).strftime("%Y-%m-%dT%H:%M:%SZ"),
                 dump_file
