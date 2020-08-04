@@ -7,7 +7,8 @@ import subprocess
 from datetime import date,timedelta
 
 
-from utils import timezone,remove_file,acquire_runlock
+from utils import timezone,remove_file
+from data_storage.utils import acquire_runlock
 
 from data_storage.exceptions import ResourceAlreadyExist
 
@@ -68,10 +69,10 @@ class Archive(object):
         
         query_end = query_start + self.settings.QUERY_DURATION
         
-        if query_end > timezone.now():
-            return (query_start,None)
-        else:
+        if query_end < timezone.now() - self.settings.LOG_DELAY_TIME:
             return (query_start,query_end)
+        else:
+            return (query_start,None)
 
 
     def archive(self,max_archive_times=False):

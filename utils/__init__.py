@@ -17,7 +17,6 @@ from .classproperty import classproperty,cachedclassproperty
 from . import gdal
 from . import timezone
 import common_settings as settings
-import exceptions
 
 
 db_connection_string_re = re.compile('^\s*(?P<database>(postgis)|(postgres))://(?P<user>[a-zA-Z0-9@\-_\.]+)(:(?P<password>[0-9a-zA-Z]+))?@(?P<host>[a-zA-Z0-9\-\_\.@]+)(:(?P<port>[1-9][0-9]*))?/(?P<dbname>[0-9a-zA-Z\-_]+)?\s*$')
@@ -92,54 +91,3 @@ def remove_folder(f):
 def file_size(f):
     return os.stat(f).st_size
 
-def acquire_runlock(lockfile):
-    """
-    register an exit hook to release the lock if a lock is acquired.
-    Throw exception if failed
-    """
-
-    fd = None
-    try:
-        fd = os.open(lockfile, os.O_CREAT|os.O_EXCL|os.O_RDWR)
-        os.write(fd,json.dumps({
-            "host": socket.getfqdn(),
-            "pid":os.getpid(),
-            "process_starttime":datetime.fromtimestamp(os.path.getmtime(os.path.join("/proc",str(os.getpid()),"cmdline")),tz=settings.TZ).strftime("%y-%m-%d %H:%M:%S")
-        }).encode())
-        #lock is acquired
-        try:
-            atexit.register(release_runlock, lockfile)
-        except:
-            #failed to attach a exit hook, release the lock and rethrow the exception
-            release_runlock(lockfile)
-            raise
-    except OSError as e:
-        if e.errno == errno.EEXIST:
-            metadata = None
-            with open(lockfile,"r") as f:
-                metadata = f.read()
-            if metadata:
-                try:
-                    metadata = json.loads(metadata)
-                except:
-                    metadata = None
-            if metadata:
-                raise exceptions.HarvesterIsRunning("The harvester is running now. {}".format(metadata))
-            else:
-                raise exceptions.HarvesterIsRunning("The harvester is running now")
-        else:
-            raise
-    finally:
-        if fd:
-            try:
-                os.close(fd)
-            except:
-                pass
-
-
-
-def release_runlock(lockfile):
-    """
-    Release the lock
-    """
-    remove_file(lockfile)
