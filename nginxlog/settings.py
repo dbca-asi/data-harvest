@@ -12,7 +12,7 @@ RESOURCE_NAME = env("NGINXLOG_RESOURCE_NAME",vtype=str,required=True)
 WORKSPACE = env("NGINXLOG_AZLOG_WORKSPACE",vtype=str,required=True)
 QUERY = env("NGINXLOG_AZLOG_QUERY",vtype=str,required=True)
 QUERY_DURATION = env("NGINXLOG_QUERY_DURATION",vtype=timedelta,required=True)# configure in seconds
-LOG_DELAY_TIME = env("LOG_DELAY_TIME",vtype=timedelta,default=timedelta(seconds=600))# configure in seconds
+LOG_DELAY_TIME = env("NGINXLOG_DELAY_TIME",vtype=timedelta,default=timedelta(seconds=600))# configure in seconds
 QUERY_START = env("NGINXLOG_QUERY_START",vtype=datetime,required=True)# configure in 'yyyy/mm/dd HH:mm:ss' in local time
 USER =  env("NGINXLOG_AZLOG_USER",vtype=str,required=True)
 PASSWORD =  env("NGINXLOG_AZLOG_PASSWORD",vtype=str,required=True)
