@@ -124,10 +124,21 @@ class Archive(object):
             dump_file = None
             with tempfile.NamedTemporaryFile(suffix=".json",prefix=self.settings.RESOURCE_NAME,delete=False) as f:
                 dump_file = f.name
+
+            if self.settings.TENANT:
+                login_cmd = "az login --service-principal -u {} -p {} --tenant {}".format(
+                    self.settings.USER,
+                    self.settings.PASSWORD,
+                    self.settings.TENANT
+                )
+            else:
+                login_cmd = "az login -u {} -p {}".format(
+                    self.settings.USER,
+                    self.settings.PASSWORD
+                )
             
-            cmd = "az login -u {} -p {}&&az monitor log-analytics query -w {} --analytics-query '{}' -t {}/{} > {}".format(
-                self.settings.USER,
-                self.settings.PASSWORD,
+            cmd = "{}&&az monitor log-analytics query -w {} --analytics-query '{}' -t {}/{} > {}".format(
+                login_cmd,
                 self.settings.WORKSPACE,
                 self.settings.QUERY,
                 timezone.utctime(query_start).strftime("%Y-%m-%dT%H:%M:%SZ"),
