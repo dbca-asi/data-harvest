@@ -10,7 +10,7 @@ from datetime import date,timedelta
 from utils import timezone,remove_file
 from data_storage.utils import acquire_runlock
 
-from data_storage.exceptions import ResourceAlreadyExist
+from data_storage.exceptions import ResourceAlreadyExist,ProcessIsRunning
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +84,13 @@ class Archive(object):
         if max_archive_times is False or max_archive_times <= 0:
             max_archive_times = self.settings.MAX_ARCHIVE_TIMES_PER_RUN
 
-        acquire_runlock(self.settings.PROCESS_LOCKFILE)
+        try:
+            acquire_runlock(self.settings.PROCESS_LOCKFILE)
+        except ProcessIsRunning as ex:
+            msg = "The previous archive process is still running, no need to run the archive process this time.{}".format(str(ex))
+            logger.info(msg)
+            return 0
+
         logger.info("Begin to continuous archive az logs, max_archive_times={}".format(max_archive_times))
         archived_times = 0
         while max_archive_times is None or archived_times < max_archive_times:
