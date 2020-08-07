@@ -91,7 +91,7 @@ class Archive(object):
             logger.info(msg)
             return 0
 
-        try
+        try:
             logger.info("Begin to continuous archive az logs, max_archive_times={}".format(max_archive_times))
             archived_times = 0
             while max_archive_times is None or archived_times < max_archive_times:
@@ -103,7 +103,7 @@ class Archive(object):
 
             return archived_times
         finally:
-            release_runlock(lock_file)
+            release_runlock(self.settings.PROCESS_LOCKFILE)
 
     def set_metadata(self,metadata):
         """
