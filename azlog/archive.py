@@ -90,7 +90,7 @@ class Archive(object):
             logger.info(msg)
             return 0
 
-        try
+        try:
             logger.info("Begin to continuous archive az logs, max_archive_times={}".format(max_archive_times))
             archived_times = 0
             while max_archive_times is None or archived_times < max_archive_times:
