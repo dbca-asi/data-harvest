@@ -8,9 +8,8 @@ from datetime import date,timedelta
 
 
 from utils import timezone,remove_file
-from data_storage.utils import acquire_runlock,release_runlock,renew_runlock
 
-from data_storage.exceptions import ResourceAlreadyExist,ProcessIsRunning
+from data_storage.exceptions import ResourceAlreadyExist,AlreadyLocked
 
 logger = logging.getLogger(__name__)
 
@@ -85,8 +84,8 @@ class Archive(object):
             max_archive_times = self.settings.MAX_ARCHIVE_TIMES_PER_RUN
 
         try:
-            renew_time = acquire_runlock(self.settings.PROCESS_LOCKFILE,expired=self.settings.MAX_ARCHIVE_TIME_PER_LOG)
-        except ProcessIsRunning as ex:
+            renew_time = self.resource_repository.acquire_lock(expired=self.settings.MAX_ARCHIVE_TIME_PER_LOG)
+        except AlreadyLocked as ex:
             msg = "The previous archive process is still running, no need to run the archive process this time.{}".format(str(ex))
             logger.info(msg)
             return 0
@@ -97,13 +96,13 @@ class Archive(object):
             while max_archive_times is None or archived_times < max_archive_times:
                 if not self._archive():
                     break
-                renew_time = renew_runlock(self.settings.PROCESS_LOCKFILE,renew_time)
+                renew_time = self.resource_repository.renew_lock(renew_time)
                 archived_times += 1
                 
 
             return archived_times
         finally:
-            release_runlock(lock_file)
+            self.resource_repository.release_lock()
 
     def set_metadata(self,metadata):
         """
