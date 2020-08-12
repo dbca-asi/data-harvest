@@ -13,6 +13,9 @@ HOME_DIR = os.path.dirname(os.path.abspath(__file__))
 TIME_ZONE = env("TIME_ZONE",'Australia/Perth')
 TZ = datetime.now(tz=pytz.timezone(TIME_ZONE)).tzinfo
 
+START_WORKING_HOUR =  env("START_WORKING_HOUR",vtype=int)
+END_WORKING_HOUR =  env("END_WORKING_HOUR",vtype=int)
+
 logging.basicConfig(level="WARNING")
 
 LOG_CONFIG = {

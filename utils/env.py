@@ -1,9 +1,14 @@
 __version__ = '1.0.0'
 import ast
 import os
+import logging
+from datetime import timedelta,datetime
+from . import timezone
 
 from dotenv import load_dotenv
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+logger = logging.getLogger(__name__)
 
 env_loaded = False
 if not env_loaded:
@@ -11,6 +16,10 @@ if not env_loaded:
     if os.path.exists(dot_env) :
         load_dotenv(dotenv_path=dot_env)
         env_loaded = True
+
+
+class Folder(object):
+    pass
 
 def env(key, default=None, required=False,vtype=None):
     """
@@ -25,7 +34,9 @@ def env(key, default=None, required=False,vtype=None):
     except KeyError:
         if default is not None or not required:
             return default
-        raise Exception("Missing required environment variable '%s'" % key)
+        else:
+            logger.error("Missing required environment variable '%s'" % key)
+            return None
 
     if vtype is None:
         if default is not None:
@@ -67,6 +78,16 @@ def env(key, default=None, required=False,vtype=None):
         return int(value)
     elif issubclass(vtype,float):
         return float(value)
+    elif issubclass(vtype,timedelta):
+        return timedelta(seconds=int(value))
+    elif issubclass(vtype,datetime):
+        return timezone.nativetime(datetime.strptime(value,"%Y-%m-%d %H:%M:%S"))
+    elif issubclass(vtype,Folder):
+        if not os.path.exists(value):
+            raise Exception("Folder({}) doesn't exist".format(value))
+        elif not os.path.isdir(value):
+            raise Exception("'{}' is not a folder".format(value))
+        return value
     else:
         raise Exception("'{0}' is a {1} environment variable, but {1} is not supported now".format(key,vtype))
 

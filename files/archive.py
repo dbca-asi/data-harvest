@@ -101,7 +101,7 @@ def archive(storage,files=None,folder=None,recursive=False,file_filter=None,rese
                 _archive_file(storage,f,resource_id,checking_policy,check_md5)
     else:
         non_exist_resourceids = set()
-        for meta in storage.resource_metadatas(throw_exception=False,resource_file="current"):
+        for meta in storage.resource_metadatas(throw_exception=False,current_resource=True):
             non_exist_resourceids.add(meta["resource_id"])
 
         folder = os.path.abspath(folder)
@@ -136,7 +136,7 @@ def archive(storage,files=None,folder=None,recursive=False,file_filter=None,rese
 
 
         for resourceid in non_exist_resourceids:
-            storage.delete_resource(resource_id=resourceid)
+            storage.delete_resource(resourceid)
             logger.debug("Delete the file({}) from storage because it doesn't exist anymore".format(resourceid))
 
 

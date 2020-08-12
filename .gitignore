@@ -13,5 +13,6 @@ test/
 *.db
 *.sqlite3
 .coverage
+.python-version
 build_image.sh
 build_image

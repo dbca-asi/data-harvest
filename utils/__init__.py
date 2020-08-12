@@ -3,15 +3,21 @@ import hashlib
 import pytz
 import sys
 import imp
+import json
+import errno
 import re
 import os
 import subprocess
 import shutil
+import socket
+import atexit
 
 from .classproperty import classproperty,cachedclassproperty
 
 from . import gdal
 from . import timezone
+import common_settings as settings
+
 
 db_connection_string_re = re.compile('^\s*(?P<database>(postgis)|(postgres))://(?P<user>[a-zA-Z0-9@\-_\.]+)(:(?P<password>[0-9a-zA-Z]+))?@(?P<host>[a-zA-Z0-9\-\_\.@]+)(:(?P<port>[1-9][0-9]*))?/(?P<dbname>[0-9a-zA-Z\-_]+)?\s*$')
 def parse_db_connection_string(connection_string):
@@ -84,3 +90,4 @@ def remove_folder(f):
 
 def file_size(f):
     return os.stat(f).st_size
+

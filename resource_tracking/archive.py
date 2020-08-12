@@ -8,7 +8,7 @@ from datetime import date,timedelta
 from utils import timezone,gdal
 import utils
 
-from data_storage import AzureBlobIndexedGroupResource
+from data_storage import IndexedGroupResourceRepository,AzureBlobStorage
 from data_storage.exceptions import ResourceAlreadyExist
 
 from . import settings
@@ -62,7 +62,7 @@ get_backup_table= lambda d:"tracking_loggedpoint_{}".format(d.strftime('%Y'))
 
 index_metaname = "loggedpoint_index"
 
-get_metaname = lambda archive_group:"loggedpoint{}".format(archive_group.split("-")[0])
+get_metaname = """lambda archive_group:"loggedpoint{}".format(archive_group.split("-")[0])"""
 _blob_resource = None
 def get_blob_resource():
     """
@@ -70,10 +70,9 @@ def get_blob_resource():
     """
     global _blob_resource
     if _blob_resource is None:
-        _blob_resource = AzureBlobIndexedGroupResource(
+        _blob_resource = IndexedGroupResourceRepository(
+            AzureBlobStorage(settings.AZURE_CONNECTION_STRING,settings.AZURE_CONTAINER),
             settings.LOGGEDPOINT_RESOURCE_NAME,
-            settings.AZURE_CONNECTION_STRING,
-            settings.AZURE_CONTAINER,
             get_metaname,
             archive=False,
             index_metaname=index_metaname
@@ -95,22 +94,16 @@ def continuous_archive(delete_after_archive=False,check=False,max_archive_days=N
         return
 
     earliest_date = timezone.nativetime(earliest_date).date()
-    now = timezone.now()
-    today = now.date()
-    if settings.END_WORKING_HOUR is not None and now.hour <= settings.END_WORKING_HOUR:
-        if settings.START_WORKING_HOUR is None or now.hour >= settings.START_WORKING_HOUR:
-            raise Exception("Please don't run continuous archive in working hour")
-
-    if settings.START_WORKING_HOUR is not None and now.hour >= settings.START_WORKING_HOUR:
-        if settings.END_WORKING_HOUR is None or now.hour <= settings.END_WORKING_HOUR:
-            raise Exception("Please don't run continuous archive in working hour")
-
+    if timezone.in_working_hour():
+        logger.error("Please don't run continuous archive in working hour")
+        return 
+    today = timezone.now().date()
     last_archive_date = today - timedelta(days=settings.LOGGEDPOINT_ACTIVE_DAYS)
     archive_date = earliest_date
     archived_days = 0
     max_archive_days = max_archive_days if max_archive_days and  max_archive_days > 0 else None
 
-    logger.info("Begin to continuous archiving loggedpoint, earliest archive date={0},last archive date = {1}, delete_after_archive={2}, check={3}, max_archive_days={4}".format(
+    logger.info("Begin to continuous archive loggedpoint, earliest archive date={0},last archive date = {1}, delete_after_archive={2}, check={3}, max_archive_days={4}".format(
         earliest_date,last_archive_date,delete_after_archive,check,max_archive_days
     ))
     if archive_date >= last_archive_date:
@@ -118,16 +111,9 @@ def continuous_archive(delete_after_archive=False,check=False,max_archive_days=N
         return
 
     while archive_date < last_archive_date and (not max_archive_days or archived_days < max_archive_days):
-        now = timezone.now()
-        if settings.END_WORKING_HOUR is not None and now.hour <= settings.END_WORKING_HOUR:
-            if settings.START_WORKING_HOUR is None or now.hour >= settings.START_WORKING_HOUR:
-                logger.info("Stop archiving in working hour")
-                break
-
-        if settings.START_WORKING_HOUR is not None and now.hour >= settings.START_WORKING_HOUR:
-            if settings.END_WORKING_HOUR is None or now.hour <= settings.END_WORKING_HOUR:
-                logger.info("Stop archiving in working hour")
-                break
+        if timezone.in_working_hour():
+            logger.info("Stop archiving in working hour")
+            break
 
         archive_by_date(archive_date,delete_after_archive=delete_after_archive,check=check,overwrite=overwrite,backup_to_archive_table=backup_to_archive_table)
         archive_date += timedelta(days=1)
@@ -203,8 +189,6 @@ def archive(archive_group,archive_id,start_date,end_date,delete_after_archive=Fa
     filename = None
     vrt_filename = None
     work_folder = tempfile.mkdtemp(prefix="archive_loggedpoint")
-    def set_end_archive(metadata):
-        metadata["end_archive"] = timezone.now()
     resourcemetadata = None
     try:
         logger.info("Begin to archive loggedpoint, archive_group={},archive_id={},start_date={},end_date={}".format(archive_group,archive_id,start_date,end_date))
@@ -446,7 +430,7 @@ def delete_all():
         return
 
     blob_resource = get_blob_resource()
-    blob_resource.delete_resource(throw_exception=False)
+    blob_resource.delete_resources(throw_exception=False)
 
 def delete_archive_by_month(year,month):
     """
@@ -461,7 +445,7 @@ def delete_archive_by_month(year,month):
     d = date(year,month,1)
     archive_group = get_archive_group(d)
     blob_resource = get_blob_resource()
-    blob_resource.delete_resource(resource_group=archive_group,throw_exception=False)
+    blob_resource.delete_resources(resource_group=archive_group,throw_exception=False)
 
 def delete_archive_by_date(d):
     """
@@ -481,7 +465,7 @@ def delete_archive_by_date(d):
     work_folder = None
     blob_resource = get_blob_resource()
     try:
-        del_metadata = blob_resource.delete_resource(resource_group=archive_group,resource_id=resource_id)
+        del_metadata = blob_resource.delete_resource(archive_group,resource_id)
         groupmetadatas = [m for m in blob_resource.metadata_client.resource_metadatas(resource_group=archive_group,throw_exception=True)]
 
         vrt_metadata = next(m for m in groupmetadatas if m["resource_id"] == vrt_id)
@@ -506,7 +490,7 @@ def delete_archive_by_date(d):
             resourcemetadata = blob_resource.push_file(vrt_filename,vrt_metadata,f_post_push=_set_end_datetime("updated"))
         else:
             #all archives in the group were deleted
-            blob_resource.delete_resource(resourceid=vrt_id,resource_group=archive_group)
+            blob_resource.delete_resource(archive_group,vrt_id)
     finally:
         utils.remove_folder(work_folder)
         pass
