@@ -1,28 +1,35 @@
-from datetime import datetime
+from datetime import datetime,timedelta
 
 from data_storage import IndexedGroupHistoryDataRepository,LocalStorage
+from data_storage.utils import timezone
 
 import azlog
 from . import settings
 
-get_metaname = """lambda resource_group:"metadata_{}".format(resource_group.rsplit("-",1)[0])"""
-exec("f_get_metaname={}".format(get_metaname))
+get_metaname_code = """
+def get_metaname(resource_group):
+    from datetime import datetime,timedelta
+    from data_storage.utils import timezone
+    group_date = timezone.nativetime(datetime.strptime(resource_group,"%Y-%m-%d"))
+    weekday = group_date.weekday()
+    if weekday == 0:
+        meta_date = group_date
+    else:
+        meta_date = group_date - timedelta(days=weekday)
+    return "metadata_{}".format(meta_date.strftime("%Y-%m-%d"))
+"""
+exec(get_metaname_code)
 
 def get_earliest_metaname(resource_id):
-    diff_months = settings.ARCHIVE_LIFESPAN % 12
-    diff_years = int(settings.ARCHIVE_LIFESPAN / 12)
-
-    d = datetime.strptime(resource_id[0],"%Y-%m-%d")
-    d = d.replace(year=d.year - diff_years,day=1)
-    earliest_month = d.month - diff_months
-    if earliest_month > 0:
-        d = d.replace(month=earliest_month)
+    d = timezone.nativetime(datetime.strptime(resource_id[0],"%Y-%m-%d"))
+    weekday = d.weekday()
+    if weekday == 0:
+        meta_date = d
     else:
-        d = d.replace(year=d.year - 1,month=12 + earliest_month)
+        meta_date = d - timedelta(days=weekday)
+    earliest_meta_date = meta_date - timedelta(days=7*settings.ARCHIVE_LIFESPAN)
 
-    earliest_group = NginxLogArchive.get_instance(settings).get_resource_group(d)
-
-    return f_get_metaname(earliest_group)
+    return "metadata_{}".format(earliest_meta_date.strftime("%Y-%m-%d"))
 
 class NginxLogArchive(azlog.Archive):
     #function to get the archive group name from archive date
@@ -35,7 +42,7 @@ class NginxLogArchive(azlog.Archive):
         return IndexedGroupHistoryDataRepository(
             LocalStorage(settings.LOCAL_STORAGE_DIR),
             settings.RESOURCE_NAME,
-            get_metaname,
+            get_metaname_code,
             index_metaname=self.index_metaname,
             f_earliest_metaname=None if settings.ARCHIVE_LIFESPAN is None or settings.ARCHIVE_LIFESPAN <= 0 else get_earliest_metaname
         )
