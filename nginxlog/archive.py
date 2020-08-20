@@ -5,8 +5,19 @@ from data_storage import IndexedGroupHistoryDataRepository,LocalStorage
 import azlog
 from . import settings
 
-get_metaname = """lambda resource_group:"metadata_{}".format(resource_group.rsplit("-",1)[0])"""
-exec("f_get_metaname={}".format(get_metaname))
+get_metaname_code = """
+def get_metaname(resource_group):
+    from datetime import datetime,timedelta
+    from data_storage.utils import timezone
+    group_date = timezone.nativetime(datetime.strptime(resource_group,"%Y-%m-%d"))
+    weekday = group_date.weekday()
+    if weekday == 0:
+        meta_date = group_date
+    else:
+        meta_date = group_date - timedelta(days=weekday)
+    return "metadata_{}".format(meta_date.strftime("%Y-%m-%d"))
+"""
+exec(get_metaname_code)
 
 def get_earliest_metaname(resource_id):
     diff_months = settings.ARCHIVE_LIFESPAN % 12
@@ -22,7 +33,7 @@ def get_earliest_metaname(resource_id):
 
     earliest_group = NginxLogArchive.get_instance(settings).get_resource_group(d)
 
-    return f_get_metaname(earliest_group)
+    return get_metaname(earliest_group)
 
 class NginxLogArchive(azlog.Archive):
     #function to get the archive group name from archive date
@@ -35,7 +46,7 @@ class NginxLogArchive(azlog.Archive):
         return IndexedGroupHistoryDataRepository(
             LocalStorage(settings.LOCAL_STORAGE_DIR),
             settings.RESOURCE_NAME,
-            get_metaname,
+            get_metaname_code,
             index_metaname=self.index_metaname,
             f_earliest_metaname=None if settings.ARCHIVE_LIFESPAN is None or settings.ARCHIVE_LIFESPAN <= 0 else get_earliest_metaname
         )

@@ -8,7 +8,7 @@ from common_settings import *
 LOCAL_STORAGE_DIR = env("NGINXLOG_STORAGE_DIR",vtype=Folder,required=True)
 ARCHIVE_LIFESPAN = env("NGINXLOG_ARCHIVE_LIFESPAN",vtype=int) #in months
 #The following are comman settings which must be set by all azlog related harvester
-RESOURCE_NAME = env("NGINXLOG_RESOURCE_NAME",vtype=str,required=True)
+RESOURCE_NAME = env("NGINXLOG_RESOURCE_NAME",vtype=str,default="nginxlog")
 WORKSPACE = env("NGINXLOG_AZLOG_WORKSPACE",vtype=str,required=True)
 QUERY = env("NGINXLOG_AZLOG_QUERY",vtype=str,required=True)
 QUERY_DURATION = env("NGINXLOG_QUERY_DURATION",vtype=timedelta,required=True)# configure in seconds

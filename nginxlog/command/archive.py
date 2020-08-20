@@ -8,7 +8,7 @@ from nginxlog import NginxLogArchive,settings
 
 logger = logging.getLogger(__name__)
 
-parser = argparse.ArgumentParser(prog="archive",description='Dump logs from azlog and push it to blob storage')
+parser = argparse.ArgumentParser(prog="archive",description='Dump nginx access logs from azlog and push it to local storage')
 parser.add_argument('max_archive_times', type=int, action='store',nargs="?",help='The maximum archiving times')
 
 def run():
