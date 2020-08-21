@@ -1,7 +1,6 @@
-from datetime import datetime,timedelta
+from datetime import datetime
 
 from data_storage import IndexedGroupHistoryDataRepository,LocalStorage
-from data_storage.utils import timezone
 
 import azlog
 from . import settings
@@ -18,6 +17,7 @@ def get_metaname(resource_group):
         meta_date = group_date - timedelta(days=weekday)
     return "metadata_{}".format(meta_date.strftime("%Y-%m-%d"))
 """
+
 def get_earliest_metaname(resource_id):
     d = timezone.nativetime(datetime.strptime(resource_id[0],"%Y-%m-%d"))
     weekday = d.weekday()
@@ -29,7 +29,7 @@ def get_earliest_metaname(resource_id):
 
     return "metadata_{}".format(earliest_meta_date.strftime("%Y-%m-%d"))
 
-class NginxLogArchive(azlog.Archive):
+class ContainerStatusArchive(azlog.Archive):
     #function to get the archive group name from archive date
  
     def get_resource_group(self,d):
