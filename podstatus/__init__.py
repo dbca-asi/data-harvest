@@ -1,1 +1,1 @@
-from .archive import ContainerStatusArchive
+from .archive import PodStatusArchive
