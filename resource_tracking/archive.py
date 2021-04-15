@@ -30,7 +30,7 @@ restore_sql = """INSERT INTO tracking_loggedpoint (device_id,point,heading,veloc
     FROM {0} a JOIN tracking_device b on a.deviceid = b.deviceid"""
 
 #The sql to return the loggedpoint data to archive
-archive_sql = "SELECT a.id,a.point,a.heading,a.velocity,a.altitude,a.message,a.source_device_type,a.raw,extract(epoch from a.seen)::bigint as seen,b.deviceid,b.registration FROM {0} a JOIN tracking_device b ON a.device_id = b.id WHERE a.seen >= '{1}' AND a.seen < '{2}'"
+archive_sql = "SELECT a.id,a.point,a.heading,a.velocity,a.altitude,a.message,a.source_device_type,a.raw,extract(epoch from a.seen)::bigint as seen,b.deviceid,b.registration FROM {0} a LEFT JOIN tracking_device b ON a.device_id = b.id WHERE a.seen >= '{1}' AND a.seen < '{2}'"
 
 create_backup_table_sql = """
 SELECT a.id,a.point,a.heading,a.velocity,a.altitude,a.message,a.source_device_type,a.raw,a.seen,b.deviceid,b.registration INTO \"{0}\" FROM tracking_loggedpoint a JOIN tracking_device b ON a.device_id = b.id WHERE false;
@@ -39,7 +39,7 @@ create index "{0}_deviceid_seen" on "{0}" (deviceid,seen);
 """
 backup_sql = """INSERT INTO "{2}" (id,point,heading,velocity,altitude,message,source_device_type,raw,seen,deviceid,registration) 
     SELECT a.id,a.point,a.heading,a.velocity,a.altitude,a.message,a.source_device_type,a.raw,a.seen,b.deviceid,b.registration 
-    FROM tracking_loggedpoint a JOIN tracking_device b ON a.device_id = b.id WHERE a.seen >= '{0}' AND a.seen < '{1}'"""
+    FROM tracking_loggedpoint a LEFT JOIN tracking_device b ON a.device_id = b.id WHERE a.seen >= '{0}' AND a.seen < '{1}'"""
 delete_backup_sql = """DELETE FROM "{2}" WHERE seen >= '{0}' AND seen < '{1}'"""
 #the sql to delete the archived loggedpoint from table tracking_loggedpoint
 del_sql = "DELETE FROM tracking_loggedpoint WHERE seen >= '{0}' AND seen < '{1}'"
@@ -215,22 +215,25 @@ def archive(archive_group,archive_id,start_date,end_date,delete_after_archive=Fa
                 logger.info("No loggedpoints to archive, archive_group={},archive_id={},start_date={},end_date={}".format(archive_group,archive_id,start_date,end_date))
             return
 
-        #has data to archive
-        if not overwrite:
-            #check whether achive exist or not
-            if resource_repository.is_exist(archive_group,resource_id):
+        if resource_repository.is_exist(archive_group,resource_id):
+            #already archived, restore the data
+            if not overwrite:
+                #in normal mode
                 raise ResourceAlreadyExist("The loggedpoint has already been archived. archive_id={0},start_archive_date={1},end_archive_date={2}".format(archive_id,start_date,end_date))
-
-        if rearchive:
-            #in rearchive mode. restore all data into table
-            logger.debug("Begin to restore the data({0}) from blob storage to table 'tracking_loggedpoint'".format(resource_id))
-            restore_by_archive(archive_group,archive_id,restore_to_origin_table=True,preserve_id=True)
-            logger.debug("End to restore the data({0}) from blob storage to table 'tracking_loggedpoint'".format(resource_id))
-            if db.is_table_exist(backup_table):
-                logger.debug("Begin to delete the data from backup table '{}'".format(backup_table))
-                sql = delete_backup_sql.format(start_date.strftime(datetime_pattern),end_date.strftime(datetime_pattern),backup_table)
-                count = db.update(sql)
-                logger.debug("End to delete {1} features from backup table {0}".format(backup_table,count))
+            elif rearchive:
+                #in rearchive mode. restore the data to original table
+                logger.info("In rearchive mode, The resource '{}' in blob storage will be restored and archived again".format(resource_id))
+                logger.debug("Begin to restore the data({0}) from blob storage to table 'tracking_loggedpoint'".format(resource_id))
+                restore_by_archive(archive_group,archive_id,restore_to_origin_table=True,preserve_id=True)
+                logger.debug("End to restore the data({0}) from blob storage to table 'tracking_loggedpoint'".format(resource_id))
+                if db.is_table_exist(backup_table):
+                    logger.debug("Begin to delete the data from backup table '{}'".format(backup_table))
+                    sql = delete_backup_sql.format(start_date.strftime(datetime_pattern),end_date.strftime(datetime_pattern),backup_table)
+                    count = db.update(sql)
+                    logger.debug("End to delete {1} features from backup table {0}".format(backup_table,count))
+            else:
+                #in overwrite mode.
+                logger.info("In overwrite mode, The resource '{}' in blob storage will be overwrided".format(resource_id))
 
         #export the archived data as geopackage
         sql = archive_sql.format(source_table,start_date.strftime(datetime_pattern),end_date.strftime(datetime_pattern))
@@ -299,28 +302,28 @@ def archive(archive_group,archive_id,start_date,end_date,delete_after_archive=Fa
             if vrt_metadata["file_md5"] != d_vrt_file_md5:
                 raise Exception("Upload vrt file failed.source file's md5={}, uploaded file's md5={}".format(vrt_metadata["file_md5"],d_vrt_file_md5))
 
+        if backup_table:
+            if not db.is_table_exist(backup_table):
+                #table doesn't exist, create the table and indexes
+                sql = create_backup_table_sql.format(backup_table)
+                db.executeDDL(sql)
+
+            sql = backup_sql.format(start_date.strftime(datetime_pattern),end_date.strftime(datetime_pattern),backup_table)
+            count = db.update(sql)
+            if count == layer_metadata["features"]:
+                logger.debug("Backup {1} features to backup table {0},sql={2}".format(backup_table,count,sql))
+            else:
+                raise Exception("Only backup {1}/{2} features to backup table {0}".format(backup_table,count,layer_metadata["features"]))
+
         if delete_after_archive:
-            if backup_table:
-                if not db.is_table_exist(backup_table):
-                    #table doesn't exist, create the table and indexes
-                    sql = create_backup_table_sql.format(backup_table)
-                    db.executeDDL(sql)
-
-                sql = backup_sql.format(start_date.strftime(datetime_pattern),end_date.strftime(datetime_pattern),backup_table)
-                count = db.update(sql)
-                if count == layer_metadata["features"]:
-                    logger.debug("Backup {1} features to backup table {0}".format(backup_table,count))
-                else:
-                    raise Exception("Only backup {1}/{2} features to backup table {0}".format(backup_table,count,layer_metadata["features"]))
-
             logger.debug("Begin to delete archived data, archive_group={},archive_id={},start_date={},end_date={}".format(
                 archive_group,archive_id,start_date,end_date
             ))
 
             delete_sql = del_sql.format(start_date.strftime(datetime_pattern),end_date.strftime(datetime_pattern))
             deleted_rows = db.update(delete_sql)
-            logger.debug("Delete {} rows from table tracking_loggedpoint, archive_group={},archive_id={},start_date={},end_date={}".format(
-                deleted_rows,archive_group,archive_id,start_date,end_date
+            logger.debug("Delete {} rows from table tracking_loggedpoint, archive_group={},archive_id={},start_date={},end_date={};sql={}".format(
+                deleted_rows,archive_group,archive_id,start_date,end_date,delete_sql
             ))
 
         logger.info("End to archive loggedpoint, archive_group={},archive_id={},start_date={},end_date={},archived features={}".format(archive_group,archive_id,start_date,end_date,layer_metadata["features"]))
