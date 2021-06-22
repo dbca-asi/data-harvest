@@ -1,1 +1,1 @@
-from .archive import archive,get_blob_resource
+from .archive import archive,get_resource_repository,clean_resources
