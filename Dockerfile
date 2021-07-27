@@ -31,6 +31,9 @@ COPY nginx ./nginx
 COPY rancher ./rancher
 COPY azlog ./azlog
 COPY nginxlog ./nginxlog
+COPY containerstatus ./containerstatus
+COPY podstatus ./podstatus
+COPY containerlog ./containerlog
 
 # Run the application as the www-data user.
 USER nobody

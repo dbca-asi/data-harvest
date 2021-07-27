@@ -6,19 +6,19 @@ from data_storage.exceptions import ResourceAlreadyExist
 from . import settings
 import files
 
-_blob_resource = None
-def get_blob_resource(reuse=True):
+_resource_repository = None
+def get_resource_repository(reuse=True):
     """
     Return the blob resource client
     """
-    global _blob_resource
-    if _blob_resource is None or not reuse:
-        _blob_resource = ResourceRepository(
+    global _resource_repository
+    if _resource_repository is None or not reuse:
+        _resource_repository = ResourceRepository(
             AzureBlobStorage(settings.AZURE_CONNECTION_STRING,settings.AZURE_CONTAINER),
             settings.RESOURCE_NAME,
             archive=False
         )
-    return _blob_resource
+    return _resource_repository
 
 def need_archive(path):
     file_folder,file_name = os.path.split(path)
@@ -31,4 +31,4 @@ def need_archive(path):
 
 
 def archive():
-    files.archive(get_blob_resource(),folder=settings.ARCHIVE_FOLDER,recursive=True,reserve_folder=settings.RESERVE_FOLDER,archive=False,file_filter=need_archive)
+    files.archive(get_resource_repository(),folder=settings.ARCHIVE_FOLDER,recursive=True,reserve_folder=settings.RESERVE_FOLDER,archive=False,file_filter=need_archive)

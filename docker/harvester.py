@@ -10,7 +10,7 @@ import subprocess
 from utils import timezone
 from . import settings
 from data_storage.utils import JSONEncoder,JSONDecoder
-from data_storage import AzureBlobGroupResource
+from data_storage import AzureBlobStorage,GroupResourceRepository
 
 pip_install_re = re.compile("^\s*RUN\s+(?P<pip>pip[0-9]?)\s+install\s+.+\-r\s+[\S]+",re.IGNORECASE)
 python_run_re = re.compile("^\s*RUN\s+(?P<python>python[0-9]?)\s+[\S]+",re.IGNORECASE)
@@ -321,20 +321,19 @@ def prebuild(workdir,buildpath,dockerfile):
     print(new_dockerfile)
 
 
-_blob_resource = None
-def get_blob_resource():
+_resource_repository = None
+def get_resource_repository():
     """
     Return the blob resource client
     """
-    global _blob_resource
-    if _blob_resource is None:
-        _blob_resource = AzureBlobGroupResource(
+    global _resource_repository
+    if _resource_repository is None:
+        _resource_repository = GroupResourceRepository(
+            AzureBlobStorage(settings.AZURE_CONNECTION_STRING,settings.AZURE_CONTAINER),
             settings.DOCKER_RESOURCE_NAME,
-            settings.AZURE_CONNECTION_STRING,
-            settings.AZURE_CONTAINER,
-            archive=False,
+            archive=False
         )
-    return _blob_resource
+    return _resource_repository
 
 resource_file = lambda imageid:imageid.replace("/","_").replace(":","_").replace('.','-')
 resource_group = lambda imageid:imageid.replace("/","_").replace(":","_").replace('.','-')
@@ -359,7 +358,7 @@ def harvest(imageid):
         "resource_file":"{}_{}_{}.json".format(docker_account,docker_repository,docker_repository_tag),
         "resource_group":"{}_{}".format(docker_account,docker_repository),
     }
-    resourcemetadata = get_blob_resource().push_json(docker_metadata,metadata=metadata)
+    resourcemetadata = get_resource_repository().push_json(docker_metadata,metadata=metadata)
 
 
 

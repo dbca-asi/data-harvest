@@ -13,6 +13,7 @@ parser.add_argument('--check',  action='store_true',help='Download the archived 
 parser.add_argument('--delete', action='store_true',help='Delete the archived logged points from table after archiving')
 parser.add_argument('--max-archive-days',dest="max_archive_days", type=int,action='store',help='Maximum days to archive')
 parser.add_argument('--overwrite', action='store_true',help='Overwrite the existing archive file')
+parser.add_argument('--rearchive', action='store_true',help='Rearchive the existing archive file')
 parser.add_argument('--backup-to-archive-table',dest="backup_to_archive_table", action='store_true',help='Backup the archived data into a yearly based table, only useful if --delete is enabled')
 
 def run():
@@ -24,6 +25,7 @@ def run():
                 check=args.check,
                 max_archive_days=args.max_archive_days if args.max_archive_days and args.max_archive_days > 0 else None,
                 overwrite=args.overwrite,
+                rearchive=args.rearchive,
                 backup_to_archive_table=args.backup_to_archive_table)
     except:
         logger.error(traceback.format_exc())
