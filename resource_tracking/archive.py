@@ -289,17 +289,17 @@ def archive(archive_group,archive_id,start_date,end_date,delete_after_archive=Fa
         groupmetadata = resourcemetadata[archive_group]
         vrt_id = get_vrt_id(archive_group)
         try:
-            vrt_metadata = next(m for m in groupmetadata.values() if m["resource_id"] == vrt_id)
+            vrt_metadata = next(m for m in groupmetadata.values() if m.get("resource_id") == vrt_id)
         except StopIteration as ex:
             vrt_metadata = {"resource_id":vrt_id,"resource_file":vrt_id,"resource_group":archive_group}
 
         vrt_metadata["features"] = 0
         for m in groupmetadata.values():
-            if m["resource_id"] == vrt_id:
+            if not m.get("resource_id") or m.get("resource_id") == vrt_id:
                 continue
             vrt_metadata["features"] += m["features"]
 
-        layers =  [(m["layer"],m["resource_file"]) for m in groupmetadata.values() if m["resource_id"] != vrt_id]
+        layers =  [(m["layer"],m["resource_file"]) for m in groupmetadata.values() if m.get("resource_id") and m.get("resource_id") != vrt_id]
         layers.sort(key=lambda o:o[0])
         layers = os.linesep.join(individual_layer.format(m[0],m[1]) for m in layers )
         vrt_data = vrt.format(get_vrt_layername(archive_group),layers)
