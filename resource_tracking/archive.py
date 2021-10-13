@@ -114,18 +114,27 @@ def continuous_archive(delete_after_archive=False,check=False,max_archive_days=N
     overwrite: if true, overwrite the existing archived file;if false, throw exception if already archived 
     rearchive: if true, rearchive the existing archived file;if false, throw exception if already archived 
     """
+    if timezone.in_working_hour():
+        logger.error("Please don't run continuous archive in working hour")
+        return 
+
+    today = timezone.now().date()
+    last_archive_date = today - timedelta(days=settings.LOGGEDPOINT_ACTIVE_DAYS)
+
     db = settings.DATABASE
-    earliest_date = db.get(earliest_archive_date)[0]
+
+    def get_earliest_date():
+        d = db.get(earliest_archive_date)[0]
+        if d is None:
+            return None
+        else:
+            return timezone.nativetime(d).date()
+
+    earliest_date = get_earliest_date()
     if earliest_date is None:
         logger.info("No more data to archive")
         return
 
-    earliest_date = timezone.nativetime(earliest_date).date()
-    if timezone.in_working_hour():
-        logger.error("Please don't run continuous archive in working hour")
-        return 
-    today = timezone.now().date()
-    last_archive_date = today - timedelta(days=settings.LOGGEDPOINT_ACTIVE_DAYS)
     archive_date = earliest_date
     archived_days = 0
     max_archive_days = max_archive_days if max_archive_days and  max_archive_days > 0 else None
@@ -137,14 +146,20 @@ def continuous_archive(delete_after_archive=False,check=False,max_archive_days=N
         logger.info("No more data to archive")
         return
 
-    while archive_date < last_archive_date and (not max_archive_days or archived_days < max_archive_days):
+    while archive_date and archive_date < last_archive_date :
         if timezone.in_working_hour():
             logger.info("Stop archiving in working hour")
             break
 
-        archive_by_date(archive_date,delete_after_archive=delete_after_archive,check=check,overwrite=overwrite,rearchive=rearchive,backup_to_archive_table=backup_to_archive_table)
-        archive_date += timedelta(days=1)
+        archived,archive_type,archive_metadata = archive_by_date(archive_date,delete_after_archive=delete_after_archive,check=check,overwrite=overwrite,rearchive=rearchive,backup_to_archive_table=backup_to_archive_table)
         archived_days += 1
+        if max_archive_days and archived_days > max_archive_days:
+            break
+
+        if archived and archive_type != "archive":
+            archive_date = get_earliest_date()
+        else:
+            archive_date += timedelta(days=1)
 
 def archive_by_month(year,month,delete_after_archive=False,check=False,overwrite=False,backup_to_archive_table=True,rearchive=False):
     """
@@ -179,6 +194,7 @@ def archive_by_date(d,delete_after_archive=False,check=False,overwrite=False,bac
     check: check whether archiving is succeed or not
     overwrite: if true, overwrite the existing archived file;if false, throw exception if already archived 
     rearchive: if true, rearchive the existing archived file;if false, throw exception if already archived 
+    return a tuple (archived or not, archive type(archive,overwrite,rearchive),archived_metadata)
     """
     now = timezone.now()
     today = now.date()
@@ -205,6 +221,7 @@ def archive(archive_group,archive_id,start_date,end_date,delete_after_archive=Fa
     rearchive: if true, rearchive the existing archived file;if false, throw exception if already archived 
     delete_after_archive: delete the archived data from table tracking_loggedpoint
     check: check whether archiving is succeed or not
+    return a tuple (archived or not, archive type(archive,overwrite,rearchive),archived_metadata)
     """
     db = settings.DATABASE
     resource_id = "{}.gpkg".format(archive_id)
@@ -223,6 +240,7 @@ def archive(archive_group,archive_id,start_date,end_date,delete_after_archive=Fa
     vrt_filename = None
     work_folder = tempfile.mkdtemp(prefix="archive_loggedpoint")
     resourcemetadata = None
+    archive_type = "archive"
     try:
         logger.info("Begin to archive loggedpoint, archive_group={},archive_id={},start_date={},end_date={}".format(archive_group,archive_id,start_date,end_date))
         resource_repository = get_resource_repository()
@@ -233,7 +251,7 @@ def archive(archive_group,archive_id,start_date,end_date,delete_after_archive=Fa
                 logger.info("The loggedpoint has already been archived. archive_id={0},start_archive_date={1},end_archive_date={2}".format(archive_id,start_date,end_date))
             else:
                 logger.info("No loggedpoints to archive, archive_group={},archive_id={},start_date={},end_date={}".format(archive_group,archive_id,start_date,end_date))
-            return
+            return (False,None,None)
 
         if resource_repository.is_exist(archive_group,resource_id):
             #already archived, restore the data
@@ -250,15 +268,17 @@ def archive(archive_group,archive_id,start_date,end_date,delete_after_archive=Fa
                     logger.debug("Begin to delete the data from backup table '{}'".format(backup_table))
                     count = db.update(delete_backup_sql.format(start_date.strftime(datetime_pattern),end_date.strftime(datetime_pattern),backup_table))
                     logger.debug("End to delete {1} features from backup table {0}".format(backup_table,count))
+                archive_type = "rearchive"
             else:
                 #in overwrite mode.
                 logger.info("In overwrite mode, The resource '{}' in blob storage will be overwrided".format(resource_id))
+                archive_type = "overwrite"
 
         #export the archived data as geopackage
         export_result = db.export_spatial_data(sql,filename=os.path.join(work_folder,"loggedpoint.gpkg"),layer=archive_id)
         if not export_result:
             logger.info("No loggedpoints to archive, archive_group={},archive_id={},start_date={},end_date={}".format(archive_group,archive_id,start_date,end_date))
-            return
+            return (False,None,None)
 
         layer_metadata,filename = export_result
         metadata["file_md5"] = utils.file_md5(filename)
@@ -345,6 +365,7 @@ def archive(archive_group,archive_id,start_date,end_date,delete_after_archive=Fa
             ))
 
         logger.info("End to archive loggedpoint, archive_group={},archive_id={},start_date={},end_date={},archived features={}".format(archive_group,archive_id,start_date,end_date,layer_metadata["features"]))
+        return (True,archive_type,metadata)
 
 
     finally:
