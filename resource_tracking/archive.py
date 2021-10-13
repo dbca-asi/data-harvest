@@ -153,7 +153,7 @@ def continuous_archive(delete_after_archive=False,check=False,max_archive_days=N
 
         archived,archive_type,archive_metadata = archive_by_date(archive_date,delete_after_archive=delete_after_archive,check=check,overwrite=overwrite,rearchive=rearchive,backup_to_archive_table=backup_to_archive_table)
         archived_days += 1
-        if max_archive_days and archived_days > max_archive_days:
+        if max_archive_days and archived_days >= max_archive_days:
             break
 
         if archived and archive_type != "archive":
