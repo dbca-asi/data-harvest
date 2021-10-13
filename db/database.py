@@ -181,9 +181,9 @@ class PostgreSQL(object):
 
         return table
 
-    def export_spatial_data(self,sql,filename=None,file_ext=None,layer=None):
+    def export_spatial_data(self,sql,filename=None,file_ext=None,layer=None,srs="EPSG:4326",geometry_column="point",geometry_type="POINT"):
         """
-        export spatial table data using gdal
+        export spatial table data to geopackage using gdal
         table can be a table or a view
         check: Check whether the table count is equal with the exported feature count.
         Return (layer metadata ,filename) if exported;otherwise return None if no data to export
@@ -202,7 +202,7 @@ class PostgreSQL(object):
             with tempfile.NamedTemporaryFile(prefix=self._params["dbname"],suffix=file_ext,delete=False) as f:
                 filename = f.name
 
-        cmd = """ogr2ogr -overwrite  {0} PG:"host='{2}' {3} dbname='{4}' {5} {6}" {1} -sql "{7}" """.format(
+        cmd = """ogr2ogr -overwrite  {0} PG:"host='{2}' {3} dbname='{4}' {5} {6}" {1} -sql "{7}" -f GPKG -lco GEOMETRY_NAME={8} -a_srs {9} -nlt {10}""".format(
             filename,
             "-nln {}".format(layer) if layer else "",
             self._params["host"],
@@ -210,8 +210,10 @@ class PostgreSQL(object):
             self._params["dbname"],
             "user='{}'".format(self._params["user"]) if self._params["user"] else "",
             "password='{}'".format(self._params["password"]) if self._params["password"] else "",
-            sql
-
+            sql,
+            geometry_column,
+            srs,
+            geometry_type
         )
         logger.debug("Export spatial data from database. ")
         subprocess.check_call(cmd,shell=True)
